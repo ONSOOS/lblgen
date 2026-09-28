@@ -1,0 +1,17 @@
+# ビルド成果物（配布ファイルは GitHub Releases に置く）
+release/
+*.exe
+build/
+dist/
+*.spec
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 実行時に作られる個人の設定・登録した形
+settings.json
+prefs.json
+shapes/
