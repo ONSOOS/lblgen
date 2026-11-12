@@ -1,6 +1,8 @@
-﻿; 数字画像メーカー インストーラ（Inno Setup 6）
+﻿; ラベルジェネレータ インストーラ（Inno Setup 6）
 ; 通常は build.py から実行する。MyAppVersion と ExePath は build.py が渡す
-#define MyAppName "数字画像メーカー"
+#define MyAppName "ラベルジェネレータ"
+; 1.3.0 までの名前（更新時に古いショートカットを消す）
+#define OldAppName "数字画像メーカー"
 #define MyAppExe "SujiMaker.exe"
 #define MyPublisher "OnsooSystem Corp."
 #ifndef MyAppVersion
@@ -42,6 +44,10 @@ Name: "desktopicon"; Description: "デスクトップにアイコンを作る"; 
 
 [Files]
 Source: "{#ExePath}"; DestDir: "{app}"; DestName: "{#MyAppExe}"; Flags: ignoreversion
+
+[InstallDelete]
+Type: files; Name: "{autoprograms}\{#OldAppName}.lnk"
+Type: files; Name: "{autodesktop}\{#OldAppName}.lnk"
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"

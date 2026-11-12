@@ -116,7 +116,7 @@ footer a,dialog a{color:var(--focus)}
         <div class="row"><label for="step">間隔</label><input type="number" id="step" min="1"></div>
         <div class="row"><label for="digits">桁数</label><input type="number" id="digits" min="1" max="10"></div>
         <div class="row"><label for="pad">桁のそろえ方</label>
-          <select id="pad"><option value="0">0で埋める（07）</option><option value=" ">ゼロサプレス（幅はそろえて 7）</option><option value="">そろえない（7）</option></select></div>
+          <select id="pad"><option value="0">0で埋める（07）</option><option value=" ">右寄せ（ゼロサプレス）</option><option value="">中央寄せ（そろえない）</option></select></div>
         <div class="row"><label for="prefix">前に付ける文字</label><input type="text" id="prefix" placeholder="例：No."></div>
         <div class="row"><label for="suffix">後に付ける文字</label><input type="text" id="suffix" placeholder="例：番"></div>
       </div>
@@ -218,7 +218,7 @@ footer a,dialog a{color:var(--focus)}
 
 <footer>
   処理はすべてブラウザの中で行い、画像やファイルはどこにも送信しません。
-  ・ <a href="https://github.com/ONSOOS/lblgen/releases/latest">Windows 版（数字画像メーカー）</a>
+  ・ <a href="https://github.com/ONSOOS/lblgen/releases/latest">Windows アプリ版</a>
   ・ <span id="footVer"></span> © 2026 OnsooSystem Corp.
 </footer>
 
@@ -226,7 +226,7 @@ footer a,dialog a{color:var(--focus)}
   <div class="dh"><h2>使い方</h2><button class="btn" type="button" data-close>閉じる</button></div>
   <div class="db">
     <h3>1. 内容</h3>
-    <p>「数字の範囲」では開始・終了・間隔・桁数を決めます。桁のそろえ方は、07 のように0で埋める、幅だけそろえて 7 と表示する（ゼロサプレス）、そろえない、から選べます。前後に文字（No.、番など）も付けられます。<br>「文字リスト」では 1行に1つずつ好きな文字を入れます。「CSVを読み込む」で CSV ファイル（UTF-8 / Excel の Shift_JIS）から読み込めます。列が複数あるときは、使う列と見出しの有無を選びます。</p>
+    <p>「数字の範囲」では開始・終了・間隔・桁数を決めます。桁のそろえ方は「0で埋める」（07）、「右寄せ」（ゼロサプレス：十の位を空けて一の位の位置に 7。7 と 17 の一の位がそろう）、「中央寄せ」（そろえない：7 も 17 もそれぞれ中央）から選べます。前後に文字（No.、番など）も付けられます。<br>「文字リスト」では 1行に1つずつ好きな文字を入れます。「CSVを読み込む」で CSV ファイル（UTF-8 / Excel の Shift_JIS）から読み込めます。列が複数あるときは、使う列と見出しの有無を選びます。</p>
     <h3>2. 文字</h3>
     <p>フォントは一覧から選びます。Chrome・Edge では「PCのフォントを読み込む」でパソコンに入っているフォントをすべて選べます。フォントファイル（.ttf / .otf）を読み込むこともできます。<br>文字の高さは数字「0」の高さが基準です。長い文字は最大幅に収まるよう自動で縮めます。<br>「日本語を含む文字は日本語フォントで描く」をオンにすると、かな・漢字・全角文字・丸数字などを含むラベルだけ、日本語フォント（自動では游ゴシックなど）で描きます。</p>
     <h3>3. 枠</h3>
@@ -249,9 +249,10 @@ footer a,dialog a{color:var(--focus)}
   <div class="dh"><h2>ラベルジェネレータ</h2><button class="btn" type="button" data-close>閉じる</button></div>
   <div class="db">
     <p id="aboutVer"></p>
-    <p>作者：Akira Sudo<br>© 2026 OnsooSystem Corp. All rights reserved.</p>
-    <p>Windows 用のアプリ版（数字画像メーカー）は <a href="https://github.com/ONSOOS/lblgen/releases/latest">GitHub の配布ページ</a> から入手できます。ソースコード：<a href="https://github.com/ONSOOS/lblgen">ONSOOS/lblgen</a></p>
-    <p>使用ライブラリ：JSZip（MIT / GPLv3）、PptxGenJS（MIT）</p>
+    <p>企画・開発：Akira Sudo<br>発行：OnsooSystem Corp.<br>© 2026 OnsooSystem Corp. All rights reserved.</p>
+    <p><b>枠で囲んだ数字・文字のラベル画像を一括作成</b><br>数字の連番・文字リスト・CSV から、円・角丸・多角形・登録した形などの枠付きラベルをまとめて作成。PNG・JPEG・WEBP のほか、文字を編集できる SVG・PowerPoint で保存できます。処理はすべてブラウザの中で行い、画像やファイルはどこにも送信しません。</p>
+    <p>オフラインでも使える Windows アプリ版（TIFF・BMP・PDF にも対応）は <a href="https://github.com/ONSOOS/lblgen/releases/latest">GitHub の配布ページ</a> から入手できます。ソースコード：<a href="https://github.com/ONSOOS/lblgen">ONSOOS/lblgen</a></p>
+    <p class="hint">使用ライブラリ：JSZip（MIT / GPLv3）、PptxGenJS（MIT）<br>作成した画像の利用条件は、使用したフォントのライセンスに従ってください。</p>
   </div>
 </dialog>
 
@@ -278,7 +279,7 @@ footer a,dialog a{color:var(--focus)}
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.min.js"></script>
 <script>
 "use strict";
-const VERSION = "Web 1.0.0";
+const VERSION = "1.4.0（Web 版）";
 
 // ================================================================ 設定
 const DEFAULTS = {
@@ -840,6 +841,17 @@ function fileBase(it, p) {
   b = b.replace(/[\\/:*?"<>|\r\n\t]/g, "_").trim();
   return b || String(it.index).padStart(3, "0");
 }
+/** 全部のファイル名（拡張子なし）。同じ名前になるものは1つ目も含めて _01, _02… を付ける */
+function fileNames(items, p) {
+  const bases = items.map(it => fileBase(it, p)), total = {}, seen = {};
+  for (const b of bases) total[b.toLowerCase()] = (total[b.toLowerCase()] || 0) + 1;
+  return bases.map(b => {
+    const k = b.toLowerCase();
+    if (total[k] < 2) return b;
+    seen[k] = (seen[k] || 0) + 1;
+    return b + "_" + String(seen[k]).padStart(Math.max(2, String(total[k]).length), "0");
+  });
+}
 function download(data, name, type) {
   const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type }));
   const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -1092,11 +1104,9 @@ async function generateAll() {
       download(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }), nameAll + ".pptx");
     } else {
       if (typeof JSZip === "undefined") throw new Error("ZIP 用の部品を読み込めませんでした（ネットワークを確認してください）");
-      const zip = new JSZip(), used = {};
+      const zip = new JSZip(), names = fileNames(items, p);
       for (let i = 0; i < items.length; i++) {
-        let base = fileBase(items[i], p); const k = base.toLowerCase();
-        used[k] = (used[k] || 0) + 1; if (used[k] > 1) base += "_" + used[k];
-        zip.file(base + EXT[p.fmt], await fileFor(items[i], p));
+        zip.file(names[i] + EXT[p.fmt], await fileFor(items[i], p));
         prog.value = i + 1; st.textContent = `${i + 1} / ${items.length} 作成中…`;
         if (i % 4 === 3) await tick();
       }

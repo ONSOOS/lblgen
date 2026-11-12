@@ -1,4 +1,4 @@
-"""数字画像メーカー：枠付きの数字・文字画像をまとめて作るアプリ"""
+"""ラベルジェネレータ（旧：数字画像メーカー）：枠付きの数字・文字ラベル画像をまとめて作るアプリ"""
 import json
 import os
 import queue
@@ -18,7 +18,8 @@ import suji_core as core  # noqa: E402
 import updater  # noqa: E402
 from shape_lib import ShapeLibrary  # noqa: E402
 import vector_out  # noqa: E402
-from app_info import APP_NAME, AUTHOR, COMPANY, COPYRIGHT, GITHUB_REPO, VERSION  # noqa: E402
+from app_info import (APP_FEATURES, APP_NAME, APP_NAME_EN, APP_TAGLINE, AUTHOR, COMPANY, COPYRIGHT,  # noqa: E402
+                      GITHUB_REPO, VERSION, WEB_URL)
 from help_text import USAGE  # noqa: E402
 
 FROZEN = getattr(sys, "frozen", False)
@@ -40,7 +41,7 @@ SHAPES_DIR = os.path.join(CONF_DIR, "shapes")  # 登録した形の保存先
 REG_PREFIX = "登録："
 PREVIEW = 170  # プレビュー1枚の大きさ(px)
 
-PAD_LABELS = {"": "なし（7）", "0": "0で埋める（07）", " ": "空白で埋める（ゼロサプレス）"}
+PAD_LABELS = {"0": "0で埋める（07）", " ": "右寄せ（ゼロサプレス）", "": "中央寄せ（そろえない）"}
 VALIGN_LABELS = {"ref": "数字の高さで揃える", "ink": "文字ごとに上下中央"}
 FMT_LABELS = {
     "PNG": "PNG（おすすめ・透過できる）",
@@ -74,7 +75,7 @@ COLOR_PRESETS = {
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title(f"{APP_NAME}  {VERSION}")
+        self.title(f"{APP_NAME}  {VERSION}  ―  {APP_TAGLINE}")
         self.minsize(980, 620)
         try:
             self.iconbitmap(os.path.join(RES_DIR, "icon.ico"))
@@ -197,22 +198,38 @@ class App(tk.Tk):
             ttk.Label(fr, image=self._about_icon).grid(row=0, column=0, rowspan=4, sticky="n", padx=(0, 16))
         except Exception:
             pass
-        ttk.Label(fr, text=APP_NAME, font=("Yu Gothic UI", 16, "bold")).grid(row=0, column=1, sticky="w")
-        ttk.Label(fr, text=f"バージョン {VERSION}").grid(row=1, column=1, sticky="w")
-        ttk.Label(fr, text=f"作者：{AUTHOR}\n{COPYRIGHT}\nAll rights reserved.", justify="left").grid(
+        ttk.Label(fr, text=f"{APP_NAME}（{APP_NAME_EN}）", font=("Yu Gothic UI", 16, "bold")).grid(
+            row=0, column=1, sticky="w")
+        ttk.Label(fr, text=f"バージョン {VERSION}　Windows 版").grid(row=1, column=1, sticky="w")
+        ttk.Label(fr, text=f"{APP_TAGLINE}\n{APP_FEATURES}", justify="left", wraplength=520).grid(
             row=2, column=1, sticky="w", pady=(10, 0))
+        ttk.Label(fr, text=f"企画・開発：{AUTHOR}\n発行：{COMPANY}\n{COPYRIGHT}  All rights reserved.",
+                  justify="left").grid(row=3, column=1, sticky="w", pady=(10, 0))
+        try:
+            import pptx
+            libs = f" / python-pptx {pptx.__version__}"
+        except Exception:
+            libs = ""
+        try:
+            import fontTools
+            libs += f" / fontTools {fontTools.version}"
+        except Exception:
+            pass
         ttk.Label(fr, foreground="#666", justify="left", text=(
-            f"\n実行環境：Python {platform.python_version()} / Pillow {PIL.__version__} / "
-            f"{platform.system()} {platform.release()}\n"
+            f"\n使用ソフトウェア：Python {platform.python_version()} / Pillow {PIL.__version__}{libs}\n"
+            f"実行環境：{platform.system()} {platform.release()}\n"
             "文字の描画には、このPCにインストールされているフォントを使います。\n"
             "作成した画像の利用条件は、使用したフォントのライセンスに従ってください。")
-        ).grid(row=3, column=1, sticky="w")
-        if GITHUB_REPO:
-            url = f"https://github.com/{GITHUB_REPO}"
-            lk = ttk.Label(fr, text=url, foreground="#0b5394", cursor="hand2")
-            lk.grid(row=4, column=1, sticky="w", pady=(6, 0))
-            lk.bind("<Button-1>", lambda e: webbrowser.open(url))
-        ttk.Button(fr, text="OK", command=d.destroy).grid(row=5, column=1, sticky="e", pady=(14, 0))
+        ).grid(row=4, column=1, sticky="w")
+        r = 5
+        for label, url in (("Web 版", WEB_URL), ("配布・ソース", f"https://github.com/{GITHUB_REPO}" if GITHUB_REPO else "")):
+            if not url:
+                continue
+            lk = ttk.Label(fr, text=f"{label}：{url}", foreground="#0b5394", cursor="hand2")
+            lk.grid(row=r, column=1, sticky="w", pady=(6 if r == 5 else 0, 0))
+            lk.bind("<Button-1>", lambda e, u=url: webbrowser.open(u))
+            r += 1
+        ttk.Button(fr, text="OK", command=d.destroy).grid(row=r, column=1, sticky="e", pady=(14, 0))
         d.grab_set()
 
     # ------------------------------------------------------------ 更新

@@ -14,7 +14,7 @@ DEFAULTS = {
     "mode": "range",          # "range"（数字の範囲） / "list"（文字リスト）
     "start": 1, "end": 99, "step": 1,
     "digits": 2,              # 桁数
-    "pad": "0",               # "" なし / "0" 0で埋める(07) / " " 空白で埋める(ゼロサプレス)
+    "pad": "0",               # "0" 0で埋める(07) / " " 右寄せ(ゼロサプレス：幅は桁数分) / "" 中央寄せ(そろえない)
     "prefix": "", "suffix": "",
     "items": "A\nB\nC",
     # 文字
@@ -40,7 +40,7 @@ DEFAULTS = {
     "fmt": "PNG", "jpeg_quality": 95,
     "svg_outline": False,     # SVG：文字をアウトライン化（編集はできないが、フォントが無くても同じ見た目）
     "pptx_layout": "grid",    # PowerPoint："grid" A4に並べる / "single" 1枚ずつ
-    "out_dir": os.path.join(os.path.expanduser("~"), "Downloads", "数字画像"),
+    "out_dir": os.path.join(os.path.expanduser("~"), "Downloads", "ラベル"),
     "filename": "{text}",
 }
 
@@ -464,15 +464,21 @@ def file_names(items, p):
         a, b = fm(first), fm(last)
         base = a + ("〜" + b if b != a else "")
         return [os.path.join(p["out_dir"], (_BAD.sub("_", base).strip() or "labels") + ext)]
-    names, used = [], {}
+    bases = []
     for it in items:
         base = p["filename"].format_map({"text": it["label"], "index": it["index"], "n": it["n"]})
-        base = _BAD.sub("_", base).strip() or f"{it['index']:03d}"
-        k = base.lower()
-        used[k] = used.get(k, 0) + 1
-        if used[k] > 1:
-            base = f"{base}_{used[k]}"
-        names.append(os.path.join(p["out_dir"], base + ext))
+        bases.append(_BAD.sub("_", base).strip() or f"{it['index']:03d}")
+    # 同じ名前になるもの（「ラベル」のように {text} などを入れなかった場合など）は、1つ目も含めて番号を付ける
+    total = {}
+    for b in bases:
+        total[b.lower()] = total.get(b.lower(), 0) + 1
+    names, seen = [], {}
+    for b in bases:
+        k = b.lower()
+        if total[k] > 1:
+            seen[k] = seen.get(k, 0) + 1
+            b = f"{b}_{seen[k]:0{max(2, len(str(total[k])))}d}"
+        names.append(os.path.join(p["out_dir"], b + ext))
     return names
 
 
