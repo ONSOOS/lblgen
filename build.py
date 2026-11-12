@@ -32,7 +32,7 @@ def ensure_venv():
     if not os.path.exists(VENV_PY):
         os.makedirs(WORK, exist_ok=True)
         run(sys.executable, "-m", "venv", os.path.join(WORK, "venv"))
-    run(VENV_PY, "-m", "pip", "install", "-q", "--disable-pip-version-check", "pyinstaller", "pillow")
+    run(VENV_PY, "-m", "pip", "install", "-q", "--disable-pip-version-check", "pyinstaller", "pillow", "python-pptx", "fonttools")
 
 
 def make_icon():
@@ -83,11 +83,11 @@ def main():
     src = os.path.join(WORK, "src")
     shutil.rmtree(src, ignore_errors=True)
     os.makedirs(src)
-    for f in ("suji_core.py", "updater.py", "app_info.py", "help_text.py", "shape_lib.py", "icon.ico"):
+    for f in ("suji_core.py", "updater.py", "app_info.py", "help_text.py", "shape_lib.py", "vector_out.py", "icon.ico"):
         shutil.copy(os.path.join(HERE, f), src)
     shutil.copy(os.path.join(HERE, "数字画像メーカー.pyw"), os.path.join(src, "app.pyw"))
     run(VENV_PY, "-m", "PyInstaller", "--noconfirm", "--onefile", "--windowed", "--name", app_info.APP_ID,
-        "--icon", icon, "--version-file", version_file(), "--add-data", f"{icon};.",
+        "--icon", icon, "--version-file", version_file(), "--add-data", f"{icon};.", "--collect-data", "pptx",
         "--paths", src, "--distpath", os.path.join(WORK, "dist"), "--workpath", os.path.join(WORK, "build"),
         "--specpath", os.path.join(WORK, "build"), os.path.join(src, "app.pyw"))
     built = os.path.join(WORK, "dist", f"{app_info.APP_ID}.exe")

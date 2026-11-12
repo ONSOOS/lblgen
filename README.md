@@ -21,16 +21,17 @@
 - **形の登録**：好きな形の画像を名前を付けて登録（見本：星・ハート・吹き出し・盾・五角形・ホームベース）
 - **色**：文字・枠線・内側・外側の色。内側・外側はそれぞれ透過にできる
 - **出力**：幅・高さ・解像度（dpi）、PNG / JPEG / TIFF / BMP / WEBP / PDF、保存先、ファイル名の付け方
+- **ベクター出力**：SVG（文字はテキストのまま、またはアウトライン化）、PowerPoint（.pptx。枠は図形・文字はテキストで、Word / Excel に貼っても編集できる）
 - **オンラインアップデート**：新しいリリースを確認し、チェックサムを確かめてから更新
 
 使い方はアプリの「ヘルプ ＞ 使い方」（F1）を見てください。
 
 ## ソースから動かす
 
-Python 3.12 以降と Pillow が必要です。
+Python 3.12 以降と Pillow が必要です。PowerPoint 出力には python-pptx、SVG のアウトライン化には fontTools も使います。
 
 ```
-pip install pillow
+pip install pillow python-pptx fonttools
 python 数字画像メーカー.pyw
 ```
 
@@ -39,6 +40,7 @@ python 数字画像メーカー.pyw
 | `数字画像メーカー.pyw` | 画面（tkinter） |
 | `suji_core.py` | 画像の描画エンジン（スクリプトからも使えます） |
 | `shape_lib.py` | 登録した形の管理 |
+| `vector_out.py` | SVG・PowerPoint の書き出し |
 | `updater.py` | GitHub Releases を使った更新 |
 | `app_info.py` | アプリ名・バージョン・クレジット・更新の確認先 |
 | `help_text.py` | ヘルプの文章 |

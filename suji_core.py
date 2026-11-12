@@ -3,7 +3,7 @@ import math
 import os
 import re
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 SS = 4  # 4倍で描いて縮小（アンチエイリアス）
 
@@ -34,6 +34,8 @@ DEFAULTS = {
     # 出力
     "width": 1200, "height": 1200, "dpi": 600,
     "fmt": "PNG", "jpeg_quality": 95,
+    "svg_outline": False,     # SVG：文字をアウトライン化（編集はできないが、フォントが無くても同じ見た目）
+    "pptx_layout": "grid",    # PowerPoint："grid" A4に並べる / "single" 1枚ずつ
     "out_dir": os.path.join(os.path.expanduser("~"), "Downloads", "数字画像"),
     "filename": "{text}",
 }
@@ -61,7 +63,8 @@ SHAPE_TEXT = {"circle": (44, 58, 0), "ellipse": (44, 62, 0), "square": (48, 76, 
 SHAPE_MAX_WIDTH = {k: v[1] for k, v in SHAPE_TEXT.items()}
 
 FORMATS = {"PNG": ".png", "JPEG": ".jpg", "TIFF": ".tif", "BMP": ".bmp",
-           "WEBP": ".webp", "PDF": ".pdf"}
+           "WEBP": ".webp", "PDF": ".pdf", "SVG": ".svg", "PPTX": ".pptx"}
+VECTOR = {"SVG", "PPTX"}  # vector_out.py で書き出す形式
 NO_ALPHA = {"JPEG", "BMP", "PDF"}
 
 
@@ -207,24 +210,30 @@ def _load_shape_image(path):
     return _shape_img_cache[key]
 
 
-def _edge_band(inner, lw):
-    """形の内側で、輪郭から lw 以内の帯（枠線）を返す。
-    縮小した画像で「四角→十字」を交互に削って八角形状に縮め（ほぼ均一な太さ）、元の大きさに戻す"""
+def erode(mask, r):
+    """マスクを内側へ r だけ縮める（縮小した画像で「四角→十字」を交互に削る八角形近似）"""
     from PIL import ImageChops, ImageFilter
-    f = min(1.0, 48 / max(lw, 1))
-    sw, sh = max(1, round(inner.width * f)), max(1, round(inner.height * f))
-    small = inner.resize((sw, sh), Image.LANCZOS).point(lambda v: 255 if v >= 128 else 0)
+    if r <= 0:
+        return mask
+    f = min(1.0, 48 / r)
+    sw, sh = max(1, round(mask.width * f)), max(1, round(mask.height * f))
+    small = mask.resize((sw, sh), Image.LANCZOS).point(lambda v: 255 if v >= 128 else 0)
     er = Image.new("L", (sw + 2, sh + 2), 0)
     er.paste(small, (1, 1))
-    for i in range(max(1, round(lw * f))):
+    for i in range(max(1, round(r * f))):
         if i % 2 == 0:
             er = er.filter(ImageFilter.MinFilter(3))
         else:
             base = er
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 er = ImageChops.darker(er, ImageChops.offset(base, dx, dy))
-    er = er.crop((1, 1, sw + 1, sh + 1)).resize(inner.size, Image.LANCZOS).point(lambda v: 255 if v >= 128 else 0)
-    return ImageChops.subtract(inner, er)
+    return er.crop((1, 1, sw + 1, sh + 1)).resize(mask.size, Image.LANCZOS).point(lambda v: 255 if v >= 128 else 0)
+
+
+def _edge_band(inner, lw):
+    """形の内側で、輪郭から lw 以内の帯（枠線）を返す"""
+    from PIL import ImageChops
+    return ImageChops.subtract(inner, erode(inner, max(lw, 1)))
 
 
 def shape_masks(p, w, h):
@@ -259,7 +268,10 @@ def shape_masks(p, w, h):
         src = _load_shape_image(p["shape_image"])
         k = min(bw / src.width, bh / src.height)  # 縦横比を保って枠の範囲に収める
         sw, sh = max(1, round(src.width * k)), max(1, round(src.height * k))
-        sm = src.resize((sw, sh), Image.LANCZOS).point(lambda v: 255 if v >= 128 else 0)
+        sm = src.resize((sw, sh), Image.LANCZOS)
+        if k > 1.5:  # 拡大するときは段差が出ないよう、少しぼかしてから輪郭を取る
+            sm = sm.filter(ImageFilter.GaussianBlur(k * 0.7))
+        sm = sm.point(lambda v: 255 if v >= 128 else 0)
         inner.paste(sm, (round((w - sw) / 2), round((h - sh) / 2)))
         if lw:
             stroke = _edge_band(inner, lw)
@@ -274,7 +286,8 @@ def shape_masks(p, w, h):
 
 
 # ---------------------------------------------------------------- 文字
-def text_mask(item, p, w, h):
+def text_mask(item, p, w, h, info=None):
+    """文字のマスクを返す。info に dict を渡すと、ベクター出力用の配置情報（描画解像度の座標）を入れる"""
     fx0, fy0, fx1, fy1 = frame_area(p, w, h)
     D = min(fx1 - fx0, fy1 - fy0)
     T = p["text_height"] / 100 * D
@@ -324,8 +337,16 @@ def text_mask(item, p, w, h):
     cx, cy = (x0 + x1) / 2 * sx, (y0 + y1) / 2 * sy
     tx = w / 2 + p["offset_x"] / 100 * w
     ty = h / 2 + p["offset_y"] / 100 * h
+    px0, py0 = round(tx - cx), round(ty - cy)
+    if info is not None:
+        info.update(
+            font=font, size=size, font_px=size * sy, hx=hx, bold=bold * sy,
+            start_x=px0 + pad * sx, baseline=py0 + bl * sy,   # 文字列の左端とベースライン
+            center_x=tx, center_y=ty,                          # 揃える基準の中心
+            ref_top=rt, ref_bottom=rb,                         # 基準字（0）の上下（size のときのベースライン基準）
+            ink_center_y=py0 + (bb[1] + bb[3]) / 2 * sy, hide=(a, l), text=s)
     mask = Image.new("L", (w, h), 0)
-    mask.paste(vis, (round(tx - cx), round(ty - cy)))
+    mask.paste(vis, (px0, py0))
     return mask
 
 
@@ -380,6 +401,12 @@ _BAD = re.compile(r'[\\/:*?"<>|\r\n\t]')
 
 def file_names(items, p):
     ext = FORMATS[p["fmt"]]
+    if p["fmt"] == "PPTX":  # 全件を1つのファイルにまとめる
+        first, last = items[0], items[-1]
+        fm = lambda it: p["filename"].format_map({"text": it["label"], "index": it["index"], "n": it["n"]})
+        a, b = fm(first), fm(last)
+        base = a + ("〜" + b if b != a else "")
+        return [os.path.join(p["out_dir"], (_BAD.sub("_", base).strip() or "labels") + ext)]
     names, used = [], {}
     for it in items:
         base = p["filename"].format_map({"text": it["label"], "index": it["index"], "n": it["n"]})
@@ -415,11 +442,18 @@ def generate(p, progress=None, cancel=None):
     items = make_items(p)
     paths = file_names(items, p)
     os.makedirs(p["out_dir"], exist_ok=True)
+    if p["fmt"] == "PPTX":
+        import vector_out
+        return vector_out.save_pptx(items, p, paths[0], progress, cancel)
     done = []
     for i, (it, path) in enumerate(zip(items, paths), 1):
         if cancel and cancel():
             break
-        save(render(it, p), path, p)
+        if p["fmt"] == "SVG":
+            import vector_out
+            vector_out.save_svg(it, p, path)
+        else:
+            save(render(it, p), path, p)
         done.append(path)
         if progress:
             progress(i, len(items))

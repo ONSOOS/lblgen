@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import suji_core as core  # noqa: E402
 import updater  # noqa: E402
 from shape_lib import ShapeLibrary  # noqa: E402
+import vector_out  # noqa: E402
 from app_info import APP_NAME, AUTHOR, COMPANY, COPYRIGHT, GITHUB_REPO, VERSION  # noqa: E402
 from help_text import USAGE  # noqa: E402
 
@@ -41,6 +42,19 @@ PREVIEW = 170  # プレビュー1枚の大きさ(px)
 
 PAD_LABELS = {"": "なし（7）", "0": "0で埋める（07）", " ": "空白で埋める（ゼロサプレス）"}
 VALIGN_LABELS = {"ref": "数字の高さで揃える", "ink": "文字ごとに上下中央"}
+FMT_LABELS = {
+    "PNG": "PNG（おすすめ・透過できる）",
+    "JPEG": "JPEG",
+    "TIFF": "TIFF（透過できる）",
+    "BMP": "BMP",
+    "WEBP": "WEBP（透過できる）",
+    "PDF": "PDF",
+    "SVG": "SVG（ベクター・文字を編集できる）",
+    "PPTX": "PowerPoint（.pptx・編集できる図形）",
+}
+if not vector_out.pptx_available():  # python-pptx が無い環境（ソースから動かす場合）では出さない
+    FMT_LABELS.pop("PPTX")
+PPTX_LAYOUT_LABELS = {"grid": "A4に並べる（印刷向け）", "single": "1枚のスライドに1つずつ"}
 LIST_PRESETS = {
     "A〜Z": [chr(c) for c in range(ord("A"), ord("Z") + 1)],
     "a〜z": [chr(c) for c in range(ord("a"), ord("z") + 1)],
@@ -417,20 +431,32 @@ class App(tk.Tk):
         self._row(t, 2, "解像度（dpi）", self._spin(t, "dpi", 72, 2400, 50))
         self.mm_label = ttk.Label(t, text="", foreground="#666")
         self.mm_label.grid(row=3, column=1, sticky="w")
-        self.fmt_cb = ttk.Combobox(t, values=list(core.FORMATS), state="readonly", width=10, textvariable=self._var("fmt"))
-        self._row(t, 4, "画像形式", self.fmt_cb)
+        self.fmt_cb = ttk.Combobox(t, values=list(FMT_LABELS.values()), state="readonly", width=36)
+        self.fmt_cb.bind("<<ComboboxSelected>>", lambda e: self._fmt_changed())
+        self._row(t, 4, "保存形式", self.fmt_cb)
         self._row(t, 5, "JPEG の品質", self._spin(t, "jpeg_quality", 50, 100, 1))
+        self._row(t, 6, "SVG の文字",
+                  ttk.Checkbutton(t, text="アウトライン化する", variable=self._var("svg_outline", tk.BooleanVar)),
+                  "編集はできなくなりますが、フォントが無いPCでも同じ見た目になります")
+        self.pptx_cb = ttk.Combobox(t, values=list(PPTX_LAYOUT_LABELS.values()), state="readonly", width=24)
+        self.pptx_cb.bind("<<ComboboxSelected>>", lambda e: self.schedule_preview())
+        self._row(t, 7, "PowerPoint の配置", self.pptx_cb, "全件を1つのファイルにまとめます")
         of = ttk.Frame(t)
         ttk.Entry(of, textvariable=self._var("out_dir"), width=50).pack(side="left", fill="x", expand=True)
         ttk.Button(of, text="参照…", command=self._pick_dir).pack(side="left", padx=4)
-        self._row(t, 6, "保存先フォルダ", of)
-        self._row(t, 7, "ファイル名", ttk.Entry(t, textvariable=self._var("filename"), width=30))
+        self._row(t, 8, "保存先フォルダ", of)
+        self._row(t, 9, "ファイル名", ttk.Entry(t, textvariable=self._var("filename"), width=30))
         ttk.Label(t, foreground="#666", justify="left", text=(
             "{text} … 画像の中の文字　　{index} … 通し番号（1から）　　{n} … 数字\n"
-            "{n:03d} のように書くと 007 のように0埋めします。例：丸_黒_{n:03d}_透過")
-        ).grid(row=8, column=1, columnspan=2, sticky="w")
+            "{n:03d} のように書くと 007 のように0埋めします。例：丸_黒_{n:03d}_透過\n"
+            "PowerPoint は1つのファイルにまとめるので「最初の名前〜最後の名前.pptx」になります。")
+        ).grid(row=10, column=1, columnspan=2, sticky="w")
         self.name_label = ttk.Label(t, text="", foreground="#666")
-        self.name_label.grid(row=9, column=1, columnspan=2, sticky="w", pady=4)
+        self.name_label.grid(row=11, column=1, columnspan=2, sticky="w", pady=4)
+        ttk.Label(t, foreground="#666", justify="left", text=(
+            "SVG・PowerPoint は拡大しても粗くならないベクター形式で、文字はテキストのまま入るので書き換えられます。\n"
+            "PowerPoint の図形は、Word や Excel にコピーして貼り付けても編集できます。")
+        ).grid(row=12, column=0, columnspan=3, sticky="w", padx=10, pady=(8, 0))
 
         # --- 下部ボタン
         bottom = ttk.Frame(left)
@@ -492,6 +518,8 @@ class App(tk.Tk):
                 p[k] = val
         p["pad"] = {v: k for k, v in PAD_LABELS.items()}.get(self.pad_cb.get(), "0")
         p["valign"] = {v: k for k, v in VALIGN_LABELS.items()}.get(self.valign_cb.get(), "ref")
+        p["fmt"] = {v: k for k, v in FMT_LABELS.items()}.get(self.fmt_cb.get(), "PNG")
+        p["pptx_layout"] = {v: k for k, v in PPTX_LAYOUT_LABELS.items()}.get(self.pptx_cb.get(), "grid")
         label = self.shape_cb.get()
         reg = self.lib.get(label[len(REG_PREFIX):]) if label.startswith(REG_PREFIX) else None
         if reg:
@@ -510,6 +538,9 @@ class App(tk.Tk):
                 v.set(p[k])
         self.pad_cb.set(PAD_LABELS.get(p.get("pad", "0"), PAD_LABELS["0"]))
         self.valign_cb.set(VALIGN_LABELS.get(p.get("valign", "ref")))
+        self.fmt_cb.set(FMT_LABELS.get(p.get("fmt", "PNG"), FMT_LABELS["PNG"]))
+        self.pptx_cb.set(PPTX_LAYOUT_LABELS.get(p.get("pptx_layout", "grid"), PPTX_LAYOUT_LABELS["grid"]))
+        self._fmt_changed()
         shape = p.get("shape", "circle")
         reg = self.lib.find_by_path(p.get("shape_image")) if shape == "custom" else None
         if reg:
@@ -554,6 +585,12 @@ class App(tk.Tk):
 
     def _items_modified(self, _):
         self.items_text.edit_modified(False)
+        self.schedule_preview()
+
+    def _fmt_changed(self):
+        fmt = {v: k for k, v in FMT_LABELS.items()}.get(self.fmt_cb.get(), "PNG")
+        if hasattr(self, "gen_btn") and not self.running:
+            self.gen_btn.configure(text="PowerPoint を作成" if fmt == "PPTX" else "画像を作成")
         self.schedule_preview()
 
     def _shape_changed(self, _=None):
@@ -880,7 +917,9 @@ class App(tk.Tk):
             try:
                 done = core.generate(p, progress=lambda i, n: self.q.put(("prog", i, n)),
                                      cancel=lambda: self.cancel_flag)
-                self.q.put(("done", len(done), len(items), p["out_dir"]))
+                # PowerPoint は1ファイルにまとめるので、中止していなければ全件できている
+                n = len(items) if p["fmt"] == "PPTX" and done and not self.cancel_flag else len(done)
+                self.q.put(("done", n, len(items), p["out_dir"]))
             except Exception as e:
                 self.q.put(("error", str(e)))
         threading.Thread(target=work, daemon=True).start()
@@ -927,7 +966,7 @@ class App(tk.Tk):
                             return
                 elif msg[0] in ("done", "error"):
                     self.running = False
-                    self.gen_btn.configure(text="画像を作成")
+                    self._fmt_changed()
                     if msg[0] == "done":
                         _, n, total, d = msg
                         self.status.configure(text=f"{n} / {total} 枚を作成しました：{d}"

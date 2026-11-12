@@ -64,7 +64,7 @@ def _sample_masks():
         y = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
         pts.append((c + x * c / 17, c * 0.9 - y * c / 17))
     d.polygon(pts, fill=255)
-    out["ハート"] = (done(im), (25, 38, 6))
+    out["ハート"] = (done(im), (22, 40, -1))
     # 吹き出し
     im, d = canvas(S, 820)
     d.rounded_rectangle((0, 0, S * ss - 1, 640 * ss), radius=160 * ss, fill=255)
