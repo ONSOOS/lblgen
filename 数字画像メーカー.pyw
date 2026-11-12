@@ -87,6 +87,7 @@ class App(tk.Tk):
         except Exception:
             pass
         self.fonts = {}
+        self.jp_font_path, self.jp_font_index = core.default_jp_font()
         self.v = {}
         self.q = queue.Queue()
         self.cancel_flag = False
@@ -337,6 +338,7 @@ class App(tk.Tk):
         self.items_text.bind("<<Modified>>", self._items_modified)
         bf = ttk.Frame(lf)
         bf.pack(side="right", fill="y", padx=6)
+        ttk.Button(bf, text="CSVを読み込む…", width=14, command=self._load_csv).pack(pady=(0, 8))
         ttk.Label(bf, text="入力例：").pack(anchor="w")
         for name, vals in LIST_PRESETS.items():
             ttk.Button(bf, text=name, width=10, command=lambda vs=vals: self._set_items("\n".join(vs))).pack(pady=1)
@@ -369,6 +371,11 @@ class App(tk.Tk):
         self._row(t, 7, "上下位置の基準", self.valign_cb, "数字なら「数字の高さ」がおすすめ")
         self._row(t, 8, "位置調整 横（%）", self._spin(t, "offset_x", -50, 50, 0.5), "＋で右へ")
         self._row(t, 9, "位置調整 縦（%）", self._spin(t, "offset_y", -50, 50, 0.5), "＋で下へ")
+        ttk.Checkbutton(t, text="日本語を含む文字は日本語フォントで描く", variable=self._var("jp_auto", tk.BooleanVar),
+                        command=self._jp_auto_changed).grid(row=10, column=1, columnspan=2, sticky="w", pady=(10, 2))
+        self.jp_font_cb = ttk.Combobox(t, state="readonly", width=46, values=[])
+        self.jp_font_cb.bind("<<ComboboxSelected>>", self._jp_font_selected)
+        self._row(t, 11, "日本語フォント", self.jp_font_cb, "かな・漢字・全角・丸数字など")
 
         # --- 枠
         t = ttk.Frame(nb)
@@ -528,6 +535,7 @@ class App(tk.Tk):
             p["shape"] = {v: k for k, v in core.SHAPES.items()}.get(label, "circle")
         p["items"] = self.items_text.get("1.0", "end").strip()
         p["font_path"], p["font_index"] = self.font_path, self.font_index
+        p["jp_font_path"], p["jp_font_index"] = self.jp_font_path, self.jp_font_index
         core._rgb(p["text_color"]), core._rgb(p["frame_color"]), core._rgb(p["fill_color"]), core._rgb(p["bg_color"])
         return p
 
@@ -545,13 +553,13 @@ class App(tk.Tk):
         reg = self.lib.find_by_path(p.get("shape_image")) if shape == "custom" else None
         if reg:
             self.shape_cb.set(REG_PREFIX + reg["name"])
-        elif shape == "none":  # 古い「枠なし」は、枠線なしの正方形として読み込む
-            self.shape_cb.set(core.SHAPES["square"])
-            self.v["frame_on"].set(False)
         else:
             self.shape_cb.set(core.SHAPES.get(shape, core.SHAPES["circle"]))
         self._set_items(p.get("items", ""))
         self.font_path, self.font_index = p["font_path"], int(p.get("font_index", 0))
+        self.jp_font_path, self.jp_font_index = p.get("jp_font_path") or "", int(p.get("jp_font_index", 0))
+        if not self.jp_font_path or not os.path.exists(self.jp_font_path):
+            self.jp_font_path, self.jp_font_index = core.default_jp_font()
         self._show_font()
         self._loading = False
         self._mode_changed()
@@ -833,6 +841,83 @@ class App(tk.Tk):
                      if os.path.normcase(v[0]) == os.path.normcase(self.font_path) and v[1] == self.font_index), None)
         self.font_cb.set(name or os.path.basename(self.font_path))
         self.font_file_label.configure(text=f"{self.font_path}（{self.font_index}）")
+        jp = next((n for n, v in self.fonts.items()
+                   if os.path.normcase(v[0]) == os.path.normcase(self.jp_font_path) and v[1] == self.jp_font_index), None)
+        self.jp_font_cb.set(jp or os.path.basename(self.jp_font_path))
+        self._jp_auto_changed()
+
+    def _jp_auto_changed(self):
+        self.jp_font_cb.configure(state="readonly" if self.v["jp_auto"].get() else "disabled")
+
+    def _jp_font_selected(self, _):
+        name = self.jp_font_cb.get()
+        if name in self.fonts:
+            self.jp_font_path, self.jp_font_index = self.fonts[name]
+            self.schedule_preview()
+
+    # ------------------------------------------------------------ CSV
+    def _load_csv(self):
+        f = filedialog.askopenfilename(parent=self, title="CSV を選ぶ",
+                                       filetypes=[("CSV", "*.csv *.tsv *.txt"), ("すべて", "*.*")])
+        if not f:
+            return
+        try:
+            rows = core.read_csv(f)
+        except Exception as e:
+            messagebox.showerror("CSV", f"読み込めませんでした。\n{e}", parent=self)
+            return
+        if not rows:
+            messagebox.showinfo("CSV", "データがありません。", parent=self)
+            return
+        ncol = max(len(r) for r in rows)
+        if ncol == 1:
+            self._apply_csv(rows, 0, False)
+            return
+        # 列が複数あるときは、使う列と見出しの有無を選んでもらう
+        d = self._dialog("CSV の読み込み")
+        ttk.Label(d, text=f"{os.path.basename(f)}（{len(rows)} 行・{ncol} 列）").pack(anchor="w", padx=12, pady=(12, 6))
+        head = tk.BooleanVar(value=True)
+        col = ttk.Combobox(d, state="readonly", width=36)
+
+        def labels():
+            return [f"{i + 1}列目" + (f"：{rows[0][i]}" if head.get() and i < len(rows[0]) and rows[0][i] else "")
+                    for i in range(ncol)]
+        fr = ttk.Frame(d)
+        fr.pack(fill="x", padx=12)
+        ttk.Label(fr, text="使う列").pack(side="left")
+        col.pack(in_=fr, side="left", padx=6)
+        col.configure(values=labels())
+        col.current(0)
+        sample = ttk.Label(d, text="", foreground="#666", justify="left")
+
+        def upd(*_):
+            i = col.current()
+            col.configure(values=labels())
+            col.current(i)
+            body = rows[1:] if head.get() else rows
+            vals = [r[i] for r in body if i < len(r) and r[i]]
+            sample.configure(text=f"{len(vals)} 個：" + "、".join(vals[:8]) + ("…" if len(vals) > 8 else ""))
+        col.bind("<<ComboboxSelected>>", upd)
+        ttk.Checkbutton(d, text="1行目は見出し（読み込まない）", variable=head, command=upd).pack(anchor="w", padx=12, pady=6)
+        sample.pack(anchor="w", padx=12)
+        upd()
+        bf = ttk.Frame(d)
+        bf.pack(fill="x", padx=12, pady=12)
+
+        def ok():
+            self._apply_csv(rows, col.current(), head.get())
+            d.destroy()
+        ttk.Button(bf, text="読み込む", command=ok).pack(side="right")
+        ttk.Button(bf, text="キャンセル", command=d.destroy).pack(side="right", padx=6)
+
+    def _apply_csv(self, rows, i, header):
+        body = rows[1:] if header else rows
+        vals = [r[i] for r in body if i < len(r) and r[i]]
+        self.v["mode"].set("list")
+        self._mode_changed()
+        self._set_items("\n".join(vals))
+        self.status.configure(text=f"CSV から {len(vals)} 個を読み込みました")
+        self.schedule_preview()
 
     # ------------------------------------------------------------ プレビュー
     def schedule_preview(self):
@@ -931,6 +1016,7 @@ class App(tk.Tk):
                 if msg[0] == "fonts":
                     self.fonts = msg[1]
                     self._filter_fonts()
+                    self.jp_font_cb.configure(values=list(self.fonts))
                     self._show_font()
                 elif msg[0] == "prog":
                     self.progress.configure(value=msg[1])

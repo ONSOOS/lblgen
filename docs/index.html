@@ -1,0 +1,1251 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ラベルジェネレータ</title>
+<meta name="description" content="枠で囲んだ数字や文字のラベル画像をまとめて作るWebツール。PNG・JPEG・WEBP・SVG・PowerPoint で保存。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='29' fill='%23fff' stroke='%23d32f2f' stroke-width='6'/%3E%3Ctext x='32' y='44' font-family='Arial' font-weight='bold' font-size='34' text-anchor='middle' fill='%23d32f2f'%3E1%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --ink:#1d2129; --sub:#5d6573; --line:#d9dde3; --soft:#eef0f3;
+  --accent:#c62828; --accent-ink:#ffffff; --focus:#1565c0; --check1:#ffffff; --check2:#e3e6ea;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15171b; --panel:#1f2228; --ink:#e8eaee; --sub:#9aa2ae; --line:#353a43; --soft:#2a2e35;
+    --accent:#ef5350; --accent-ink:#ffffff; --focus:#64b5f6; --check1:#2a2e35; --check2:#33373f;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15171b; --panel:#1f2228; --ink:#e8eaee; --sub:#9aa2ae; --line:#353a43; --soft:#2a2e35;
+  --accent:#ef5350; --accent-ink:#ffffff; --focus:#64b5f6; --check1:#2a2e35; --check2:#33373f;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,-apple-system,"Segoe UI","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:18px;margin:0;font-weight:700}
+header .sub{color:var(--sub);font-size:12px}
+header nav{margin-left:auto;display:flex;gap:6px}
+main{display:grid;grid-template-columns:380px 1fr;gap:16px;padding:16px 20px;max-width:1400px;margin:0 auto}
+@media (max-width:860px){main{grid-template-columns:1fr;padding:12px 16px}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.tabs{display:flex;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{flex:1;border:0;background:none;color:var(--sub);padding:10px 6px;font:inherit;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+.tabpane{padding:14px 16px;display:none}
+.tabpane.on{display:block}
+.row{display:grid;grid-template-columns:118px 1fr;align-items:center;gap:8px;margin:8px 0}
+.row>label:first-child{color:var(--sub);font-size:13px}
+.row .pair{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.hint{color:var(--sub);font-size:12px;margin:4px 0 10px}
+input[type=text],input[type=number],select,textarea{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font:inherit;min-width:0}
+input[type=number]{max-width:110px}
+textarea{min-height:110px;resize:vertical}
+input[type=color]{width:44px;height:30px;padding:0 2px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+input[type=range]{flex:1;min-width:80px}
+:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.btn{white-space:nowrap;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:6px 12px;font:inherit;cursor:pointer}
+.btn:hover{background:var(--soft)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.small{padding:3px 8px;font-size:12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg label{padding:4px 10px;cursor:pointer;font-size:13px}
+.seg input{display:none}
+.seg label:has(input:checked){background:var(--accent);color:var(--accent-ink)}
+.out{padding:14px 16px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.out .status{color:var(--sub);font-size:12px;width:100%}
+progress{width:100%;height:8px}
+.view{padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.big{display:flex;justify-content:center;align-items:center;min-height:300px;border-radius:8px;
+  background:repeating-conic-gradient(var(--check1) 0 25%,var(--check2) 0 50%) 0 0/20px 20px;padding:16px}
+.big canvas{max-width:100%;max-height:52vh;box-shadow:0 0 0 1px var(--line)}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px}
+.thumbs button{border:1px solid var(--line);border-radius:6px;padding:4px;cursor:pointer;
+  background:repeating-conic-gradient(var(--check1) 0 25%,var(--check2) 0 50%) 0 0/12px 12px}
+.thumbs button[aria-current="true"]{outline:2px solid var(--accent)}
+.thumbs canvas{width:100%;height:auto;display:block}
+.meta{display:flex;justify-content:space-between;color:var(--sub);font-size:12px;gap:8px;flex-wrap:wrap}
+.err{color:var(--accent);font-size:13px}
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);max-width:min(680px,92vw);padding:0}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog .dh{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+dialog .dh h2{font-size:16px;margin:0}
+dialog .dh .btn{margin-left:auto}
+dialog .db{padding:4px 18px 16px;max-height:70vh;overflow:auto}
+dialog h3{font-size:14px;margin:16px 0 4px}
+dialog p,dialog li{font-size:13px}
+.shapes-list{list-style:none;padding:0;margin:8px 0}
+.shapes-list li{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)}
+.shapes-list li span{flex:1}
+footer{color:var(--sub);font-size:12px;text-align:center;padding:12px 16px 24px}
+footer a,dialog a{color:var(--focus)}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>ラベルジェネレータ</h1>
+    <div class="sub">枠で囲んだ数字・文字の画像をまとめて作成</div>
+  </div>
+  <nav>
+    <button class="btn" id="btnHelp" type="button">使い方</button>
+    <button class="btn" id="btnAbout" type="button">情報</button>
+  </nav>
+</header>
+
+<main>
+  <section class="panel" aria-label="設定">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="content" aria-selected="true">内容</button>
+      <button role="tab" data-tab="text" aria-selected="false">文字</button>
+      <button role="tab" data-tab="frame" aria-selected="false">枠</button>
+      <button role="tab" data-tab="color" aria-selected="false">色</button>
+      <button role="tab" data-tab="output" aria-selected="false">出力</button>
+    </div>
+
+    <div class="tabpane on" data-pane="content">
+      <div class="row"><label>作るもの</label>
+        <div class="seg"><label><input type="radio" name="mode" value="range">数字の範囲</label><label><input type="radio" name="mode" value="list">文字リスト</label></div></div>
+      <div id="rangeBox">
+        <div class="row"><label for="start">開始</label><input type="number" id="start" min="0"></div>
+        <div class="row"><label for="end">終了</label><input type="number" id="end" min="0"></div>
+        <div class="row"><label for="step">間隔</label><input type="number" id="step" min="1"></div>
+        <div class="row"><label for="digits">桁数</label><input type="number" id="digits" min="1" max="10"></div>
+        <div class="row"><label for="pad">桁のそろえ方</label>
+          <select id="pad"><option value="0">0で埋める（07）</option><option value=" ">ゼロサプレス（幅はそろえて 7）</option><option value="">そろえない（7）</option></select></div>
+        <div class="row"><label for="prefix">前に付ける文字</label><input type="text" id="prefix" placeholder="例：No."></div>
+        <div class="row"><label for="suffix">後に付ける文字</label><input type="text" id="suffix" placeholder="例：番"></div>
+      </div>
+      <div id="listBox">
+        <div class="row" style="grid-template-columns:1fr"><textarea id="items" aria-label="文字リスト"></textarea></div>
+        <div class="hint">1行に1つ（1行だけなら読点・カンマ区切りも可）。<br>
+          <button class="btn small" type="button" id="btnCsv">CSVを読み込む…</button>
+          <input type="file" id="csvFile" accept=".csv,.tsv,.txt,text/csv" hidden>
+          <button class="btn small" type="button" data-fill="AZ">A〜Z</button>
+          <button class="btn small" type="button" data-fill="az">a〜z</button>
+          <button class="btn small" type="button" data-fill="iroha">あ〜ん</button>
+          <button class="btn small" type="button" data-fill="maru">①〜⑳</button></div>
+      </div>
+      <div class="hint" id="countInfo"></div>
+    </div>
+
+    <div class="tabpane" data-pane="text">
+      <div class="row"><label for="font_family">フォント</label><select id="font_family"></select></div>
+      <div class="row"><label></label><div class="pair">
+        <button class="btn small" type="button" id="btnLocalFonts">PCのフォントを読み込む</button>
+        <button class="btn small" type="button" id="btnFontFile">フォントファイル…</button>
+        <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2" hidden></div></div>
+      <div class="row"><label for="font_weight">太さ</label>
+        <select id="font_weight"><option value="400">標準</option><option value="700">太字</option><option value="900">極太</option></select></div>
+      <div class="row"><label for="text_height">文字の高さ %</label><div class="pair"><input type="range" id="text_height_r" min="5" max="95" step="1"><input type="number" id="text_height" min="1" max="100" step="0.5"></div></div>
+      <div class="row"><label for="max_width">最大幅 %</label><div class="pair"><input type="range" id="max_width_r" min="5" max="100" step="1"><input type="number" id="max_width" min="1" max="100" step="0.5"></div></div>
+      <div class="row"><label for="min_scale">縮小の下限 %</label><input type="number" id="min_scale" min="10" max="100" step="1"></div>
+      <div class="row"><label for="bold">太らせる %</label><input type="number" id="bold" min="0" max="20" step="0.5"></div>
+      <div class="row"><label for="valign">縦のそろえ方</label>
+        <select id="valign"><option value="ref">数字「0」の高さでそろえる</option><option value="ink">文字ごとに中央</option></select></div>
+      <div class="row"><label for="offset_x">左右の位置 %</label><input type="number" id="offset_x" step="0.5"></div>
+      <div class="row"><label for="offset_y">上下の位置 %</label><input type="number" id="offset_y" step="0.5"></div>
+      <div class="row"><label for="jp_auto">日本語</label><label><input type="checkbox" id="jp_auto"> 日本語を含む文字は日本語フォントで描く</label></div>
+      <div class="row"><label for="jp_font">日本語フォント</label><select id="jp_font"></select></div>
+      <div class="hint">文字の高さは数字「0」の高さで、枠の短辺に対する割合です。最大幅を超える文字は「縮小の下限」まで全体を縮め、残りは横だけ縮めます。</div>
+    </div>
+
+    <div class="tabpane" data-pane="frame">
+      <div class="row"><label for="shape">形</label><select id="shape"></select></div>
+      <div class="row"><label></label><div class="pair">
+        <button class="btn small" type="button" id="btnAddShape">画像から形を登録…</button>
+        <button class="btn small" type="button" id="btnManageShapes">登録した形</button>
+        <input type="file" id="shapeFile" accept="image/*" hidden></div></div>
+      <div class="row"><label for="frame_on">枠線</label><label><input type="checkbox" id="frame_on"> 枠線を描く</label></div>
+      <div class="row"><label for="line_width">線の太さ %</label><div class="pair"><input type="range" id="line_width_r" min="0" max="25" step="0.5"><input type="number" id="line_width" min="0" max="50" step="0.5"></div></div>
+      <div class="row"><label for="margin">余白 %</label><input type="number" id="margin" min="0" max="40" step="0.5"></div>
+      <div class="row" id="radiusRow"><label for="radius">角の丸み %</label><div class="pair"><input type="range" id="radius_r" min="0" max="50" step="1"><input type="number" id="radius" min="0" max="50" step="0.5"></div></div>
+      <div class="hint">形を変えると、文字の高さ・最大幅・上下の位置をその形のおすすめ値にします。<br>線の太さ・余白・丸みは画像の短辺に対する割合です。</div>
+    </div>
+
+    <div class="tabpane" data-pane="color">
+      <div class="row"><label for="text_color">文字</label><div class="pair"><input type="color" id="text_color"><input type="text" id="text_color_t" maxlength="7" style="max-width:100px"></div></div>
+      <div class="row"><label for="frame_color">枠線</label><div class="pair"><input type="color" id="frame_color"><input type="text" id="frame_color_t" maxlength="7" style="max-width:100px"></div></div>
+      <div class="row"><label for="fill_color">枠の内側</label><div class="pair"><input type="color" id="fill_color"><input type="text" id="fill_color_t" maxlength="7" style="max-width:100px"><label><input type="checkbox" id="fill_transparent"> 透過</label></div></div>
+      <div class="row"><label for="bg_color">枠の外側</label><div class="pair"><input type="color" id="bg_color"><input type="text" id="bg_color_t" maxlength="7" style="max-width:100px"><label><input type="checkbox" id="bg_transparent"> 透過</label></div></div>
+      <div class="hint">組み合わせの例：
+        <button class="btn small" type="button" data-preset="bw">黒・白</button>
+        <button class="btn small" type="button" data-preset="wb">白抜き</button>
+        <button class="btn small" type="button" data-preset="rw">赤・白</button>
+        <button class="btn small" type="button" data-preset="wr">赤地に白</button></div>
+    </div>
+
+    <div class="tabpane" data-pane="output">
+      <div class="row"><label for="fmt">保存形式</label>
+        <select id="fmt">
+          <option value="PNG">PNG（透過できる）</option>
+          <option value="JPEG">JPEG</option>
+          <option value="WEBP">WEBP（透過できる）</option>
+          <option value="SVG">SVG（文字を編集できる）</option>
+          <option value="PPTX">PowerPoint（.pptx、文字を編集できる）</option>
+        </select></div>
+      <div class="row"><label for="width">幅 px</label><input type="number" id="width" min="16" max="6000"></div>
+      <div class="row"><label for="height">高さ px</label><input type="number" id="height" min="16" max="6000"></div>
+      <div class="row"><label for="dpi">解像度 dpi</label><input type="number" id="dpi" min="72" max="2400"></div>
+      <div class="row" id="jpegRow"><label for="jpeg_quality">JPEG 画質</label><input type="number" id="jpeg_quality" min="50" max="100"></div>
+      <div class="row" id="pptxRow"><label for="pptx_layout">PowerPoint</label>
+        <select id="pptx_layout"><option value="grid">A4 に並べる</option><option value="single">1枚に1つ</option></select></div>
+      <div class="row"><label for="filename">ファイル名</label><input type="text" id="filename"></div>
+      <div class="hint" id="sizeInfo"></div>
+      <div class="hint">ファイル名には {text}（文字）、{index}（通し番号）、{index:03} のように桁を付けた番号が使えます。</div>
+    </div>
+
+    <div class="out">
+      <button class="btn primary" type="button" id="btnGenerate">まとめてダウンロード</button>
+      <button class="btn" type="button" id="btnOne">表示中の1つを保存</button>
+      <button class="btn" type="button" id="btnReset">初期設定に戻す</button>
+      <progress id="prog" value="0" max="1" hidden></progress>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="panel view" aria-label="プレビュー">
+    <div class="big"><canvas id="bigCanvas" width="300" height="300" aria-label="選んだラベルのプレビュー"></canvas></div>
+    <div class="meta"><span id="bigLabel"></span><span id="previewNote"></span></div>
+    <div class="err" id="err" role="alert"></div>
+    <div class="thumbs" id="thumbs"></div>
+  </section>
+</main>
+
+<footer>
+  処理はすべてブラウザの中で行い、画像やファイルはどこにも送信しません。
+  ・ <a href="https://github.com/ONSOOS/lblgen/releases/latest">Windows 版（数字画像メーカー）</a>
+  ・ <span id="footVer"></span> © 2026 OnsooSystem Corp.
+</footer>
+
+<dialog id="dlgHelp">
+  <div class="dh"><h2>使い方</h2><button class="btn" type="button" data-close>閉じる</button></div>
+  <div class="db">
+    <h3>1. 内容</h3>
+    <p>「数字の範囲」では開始・終了・間隔・桁数を決めます。桁のそろえ方は、07 のように0で埋める、幅だけそろえて 7 と表示する（ゼロサプレス）、そろえない、から選べます。前後に文字（No.、番など）も付けられます。<br>「文字リスト」では 1行に1つずつ好きな文字を入れます。「CSVを読み込む」で CSV ファイル（UTF-8 / Excel の Shift_JIS）から読み込めます。列が複数あるときは、使う列と見出しの有無を選びます。</p>
+    <h3>2. 文字</h3>
+    <p>フォントは一覧から選びます。Chrome・Edge では「PCのフォントを読み込む」でパソコンに入っているフォントをすべて選べます。フォントファイル（.ttf / .otf）を読み込むこともできます。<br>文字の高さは数字「0」の高さが基準です。長い文字は最大幅に収まるよう自動で縮めます。<br>「日本語を含む文字は日本語フォントで描く」をオンにすると、かな・漢字・全角文字・丸数字などを含むラベルだけ、日本語フォント（自動では游ゴシックなど）で描きます。</p>
+    <h3>3. 枠</h3>
+    <p>なし（文字だけ）・円・楕円・正方形・長方形・角丸・多角形・星・ハートなどから選びます。枠線を外すと、内側の塗りだけになります。<br>「画像から形を登録」で好きな形を追加できます。透過PNGなら不透明な部分、それ以外の画像は暗い部分が形になります。登録した形はこのブラウザに保存されます。</p>
+    <h3>4. 色</h3>
+    <p>文字・枠線・枠の内側・枠の外側の色を選びます。内側と外側はそれぞれ透過にできます（PNG・WEBP・SVG・PowerPoint）。</p>
+    <h3>5. 出力</h3>
+    <p>「まとめてダウンロード」で全部を ZIP にまとめて保存します。PowerPoint は全部を1つのファイルにまとめます。<br>サムネイルを押すと大きく表示し、「表示中の1つを保存」でその1つだけを保存します。</p>
+    <ul>
+      <li>PNG・JPEG には解像度（dpi）を記録します。印刷サイズは 幅px ÷ dpi インチです。</li>
+      <li>SVG と PowerPoint は文字がテキストのまま入るので、あとから編集できます。PowerPoint の図形は Word・Excel に貼っても編集できます。</li>
+      <li>SVG・PowerPoint を開く PC に同じフォントが無いと、別のフォントで表示されます。</li>
+    </ul>
+    <h3>設定の保存</h3>
+    <p>設定はこのブラウザに自動で保存され、次に開いたときも同じ状態から始まります。</p>
+  </div>
+</dialog>
+
+<dialog id="dlgAbout">
+  <div class="dh"><h2>ラベルジェネレータ</h2><button class="btn" type="button" data-close>閉じる</button></div>
+  <div class="db">
+    <p id="aboutVer"></p>
+    <p>作者：Akira Sudo<br>© 2026 OnsooSystem Corp. All rights reserved.</p>
+    <p>Windows 用のアプリ版（数字画像メーカー）は <a href="https://github.com/ONSOOS/lblgen/releases/latest">GitHub の配布ページ</a> から入手できます。ソースコード：<a href="https://github.com/ONSOOS/lblgen">ONSOOS/lblgen</a></p>
+    <p>使用ライブラリ：JSZip（MIT / GPLv3）、PptxGenJS（MIT）</p>
+  </div>
+</dialog>
+
+<dialog id="dlgCsv">
+  <div class="dh"><h2>CSV の読み込み</h2><button class="btn" type="button" data-close>キャンセル</button></div>
+  <div class="db">
+    <p id="csvInfo"></p>
+    <div class="row"><label for="csvCol">使う列</label><select id="csvCol"></select></div>
+    <div class="row"><label></label><label><input type="checkbox" id="csvHead" checked> 1行目は見出し（読み込まない）</label></div>
+    <p class="hint" id="csvSample"></p>
+    <button class="btn primary" type="button" id="csvOk">読み込む</button>
+  </div>
+</dialog>
+
+<dialog id="dlgShapes">
+  <div class="dh"><h2>登録した形</h2><button class="btn" type="button" data-close>閉じる</button></div>
+  <div class="db">
+    <ul class="shapes-list" id="shapesList"></ul>
+    <p class="hint">登録した形はこのブラウザだけに保存されます。名前を押すと名前を変更できます。</p>
+  </div>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.min.js"></script>
+<script>
+"use strict";
+const VERSION = "Web 1.0.0";
+
+// ================================================================ 設定
+const DEFAULTS = {
+  mode: "range", start: 1, end: 99, step: 1, digits: 2, pad: "0", prefix: "", suffix: "",
+  items: "A\nB\nC",
+  font_family: "Arial Narrow", font_weight: "700", jp_auto: true, jp_font: "",
+  text_height: 44, max_width: 58, min_scale: 82, bold: 0, valign: "ref", offset_x: 0, offset_y: 0,
+  frame_on: true, shape: "circle", line_width: 6, margin: 3, radius: 20,
+  text_color: "#000000", frame_color: "#000000", fill_color: "#FFFFFF", fill_transparent: false,
+  bg_color: "#FFFFFF", bg_transparent: true,
+  width: 1200, height: 1200, dpi: 600, fmt: "PNG", jpeg_quality: 95, pptx_layout: "grid",
+  filename: "{text}",
+};
+const SHAPES = [
+  ["none", "なし（枠なし）"], ["circle", "円"], ["ellipse", "楕円"], ["square", "正方形"], ["rect", "長方形"],
+  ["rounded", "角丸正方形"], ["rrect", "角丸長方形"], ["hexagon", "六角形"], ["octagon", "八角形"],
+  ["diamond", "ひし形"], ["triangle", "三角形"], ["pentagon", "五角形"], ["star", "星"], ["heart", "ハート"],
+  ["bubble", "吹き出し"], ["shield", "盾"], ["homebase", "ホームベース"],
+];
+const SQUARE_SHAPES = new Set(["circle", "square", "rounded"]);
+// 形ごとのおすすめ値：[文字の高さ%, 最大幅%, 上下の位置%]
+const SHAPE_TEXT = {
+  circle: [44, 58, 0], ellipse: [44, 62, 0], square: [48, 76, 0], rect: [48, 80, 0],
+  rounded: [46, 72, 0], rrect: [46, 76, 0], hexagon: [44, 62, 0], octagon: [44, 64, 0],
+  diamond: [28, 40, 0], triangle: [26, 36, 12], star: [21, 28, 7], heart: [22, 40, -1],
+  bubble: [36, 64, -10], shield: [34, 56, -6], pentagon: [36, 56, 5], homebase: [40, 72, -8],
+  custom: [26, 34, 4], none: [60, 90, 0],
+};
+const EXT = { PNG: ".png", JPEG: ".jpg", WEBP: ".webp", SVG: ".svg", PPTX: ".pptx" };
+const MIME = { PNG: "image/png", JPEG: "image/jpeg", WEBP: "image/webp" };
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* 保存できなくても動く */ } },
+};
+let P = Object.assign({}, DEFAULTS, store.get("lblgen.settings", {}));
+let userShapes = store.get("lblgen.shapes", []);   // [{id, name, rings, w, h, rec}]
+let extraFonts = store.get("lblgen.fonts", []);     // PCから読み込んだフォント名
+
+// ================================================================ 内容
+function makeItems(p) {
+  const items = [];
+  if (p.mode === "range") {
+    const s = Math.trunc(+p.start), e = Math.trunc(+p.end), st = Math.abs(Math.trunc(+p.step)) || 1;
+    if (!(s >= 0 && e >= 0)) throw new Error("数字の範囲は0以上にしてください");
+    const n = Math.floor(Math.abs(e - s) / st) + 1;
+    if (n > 5000) throw new Error("一度に作れるのは 5000 個までです");
+    const d = Math.max(1, Math.trunc(+p.digits) || 1), pre = p.prefix || "", suf = p.suffix || "";
+    for (let i = 0; i < n; i++) {
+      const v = s <= e ? s + i * st : s - i * st;
+      const t = String(v), lead = Math.max(0, d - t.length), zeros = "0".repeat(lead);
+      if (p.pad === "0") items.push({ text: pre + zeros + t + suf, hide: [0, 0], label: pre + zeros + t + suf, index: i + 1 });
+      else if (p.pad === " ") items.push({ text: pre + zeros + t + suf, hide: [pre.length, lead], label: pre + t + suf, index: i + 1 });
+      else items.push({ text: pre + t + suf, hide: [0, 0], label: pre + t + suf, index: i + 1 });
+    }
+  } else {
+    // 複数行なら1行に1つ（CSV から読んだ「大阪, 本町」なども1つ）。1行だけならカンマ・読点で区切る
+    const src = String(p.items).trim();
+    const parts = (src.includes("\n") ? src.split(/\r?\n/) : src.split(/[,、，]/)).map(x => x.trim()).filter(Boolean);
+    if (parts.length > 5000) throw new Error("一度に作れるのは 5000 個までです");
+    parts.forEach((t, i) => items.push({ text: t, hide: [0, 0], label: t, index: i + 1 }));
+  }
+  return items;
+}
+
+// ================================================================ 形
+const recOf = shape => shape.startsWith("u:") ? (userShapes.find(s => "u:" + s.id === shape)?.rec || SHAPE_TEXT.custom) : (SHAPE_TEXT[shape] || SHAPE_TEXT.custom);
+
+function normRings(rings) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const r of rings) for (const [x, y] of r) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  const k = 1 / Math.max(x1 - x0, y1 - y0);
+  return { rings: rings.map(r => r.map(([x, y]) => [(x - x0) * k, (y - y0) * k])), w: (x1 - x0) * k, h: (y1 - y0) * k };
+}
+
+const SAMPLE = (() => {
+  const S = {}, c = 500, deg = Math.PI / 180;
+  S.star = normRings([Array.from({ length: 10 }, (_, k) => {
+    const r = k % 2 ? 0.5 * c : c, a = (-90 + 36 * k) * deg; return [c + r * Math.cos(a), c + r * Math.sin(a)]; })]);
+  // ハートの式は下の先端が角度0のとがりになるので、先端の近くを省いて V 字の先にする（線がはみ出さないように）
+  S.heart = normRings([Array.from({ length: 360 }, (_, i) => {
+    const t = 2 * Math.PI * i / 360, x = 16 * Math.sin(t) ** 3,
+      y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+    return Math.abs(t - Math.PI) < 0.6 && i !== 180 ? null : [c + x * c / 17, c * 0.9 - y * c / 17]; }).filter(Boolean)]);
+  S.pentagon = normRings([Array.from({ length: 5 }, (_, k) => [c + c * Math.cos((-90 + 72 * k) * deg), c + c * Math.sin((-90 + 72 * k) * deg)])]);
+  S.homebase = normRings([[[0, 0], [1000, 0], [1000, 600], [500, 1000], [0, 600]]]);
+  {
+    const pts = [[0, 0], [1000, 0], [1000, 480]], q = (a, b, e, u) => (1 - u) ** 2 * a + 2 * (1 - u) * u * b + u * u * e;
+    for (let i = 1; i <= 40; i++) { const u = i / 40; pts.push([q(1000, 1000, 500, u), q(480, 900, 1100, u)]); }
+    for (let i = 39; i >= 0; i--) { const u = i / 40; pts.push([q(0, 0, 500, u), q(480, 900, 1100, u)]); }
+    S.shield = normRings([pts]);
+  }
+  {
+    // 角丸長方形 (0,0)-(1000,640) r160 に、下辺から三角のしっぽ
+    const r = 160, pts = [], arc = (cx, cy, a0) => { for (let i = 0; i <= 12; i++) { const a = (a0 + 90 * i / 12) * deg; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } };
+    arc(r, r, 180); arc(1000 - r, r, 270); arc(1000 - r, 640 - r, 0);
+    pts.push([394.5, 640], [190, 820], [222.7, 640]);
+    arc(r, 640 - r, 90);
+    S.bubble = normRings([pts]);
+  }
+  return S;
+})();
+
+function polyRings(n, rotDeg) {
+  const pts = Array.from({ length: n }, (_, k) => { const a = (rotDeg + 360 * k / n) * Math.PI / 180; return [Math.cos(a), Math.sin(a)]; });
+  return pts;
+}
+function fitStretch(pts, box) {
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const mnx = Math.min(...xs), mxx = Math.max(...xs), mny = Math.min(...ys), mxy = Math.max(...ys);
+  return pts.map(([x, y]) => [box[0] + (x - mnx) / (mxx - mnx) * (box[2] - box[0]), box[1] + (y - mny) / (mxy - mny) * (box[3] - box[1])]);
+}
+function isConvex(rings) {
+  if (rings.length !== 1) return false;
+  const r = rings[0], n = r.length; let sgn = 0;
+  for (let i = 0; i < n; i++) {
+    const a = r[i], b = r[(i + 1) % n], c = r[(i + 2) % n];
+    const cr = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+    if (Math.abs(cr) < 1e-9) continue;
+    if (!sgn) sgn = Math.sign(cr); else if (Math.sign(cr) !== sgn) return false;
+  }
+  return true;
+}
+function insetPolygon(pts, d) {
+  const n = pts.length; let area = 0;
+  for (let i = 0; i < n; i++) area += pts[i][0] * pts[(i + 1) % n][1] - pts[(i + 1) % n][0] * pts[i][1];
+  const sgn = area > 0 ? 1 : -1, lines = [];
+  for (let i = 0; i < n; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % n], dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L * sgn, ny = dx / L * sgn;
+    lines.push([[ax + nx * d, ay + ny * d], [dx, dy]]);
+  }
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const [p1, d1] = lines[(i - 1 + n) % n], [p2, d2] = lines[i];
+    const den = d1[0] * d2[1] - d1[1] * d2[0];
+    if (Math.abs(den) < 1e-12) { out.push(p2); continue; }
+    const t = ((p2[0] - p1[0]) * d2[1] - (p2[1] - p1[1]) * d2[0]) / den;
+    const q = [p1[0] + d1[0] * t, p1[1] + d1[1] * t];
+    // くぼみの奥などで交点が遠くへ飛ぶときは、頂点を内側へずらした点で止める
+    if (Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]) > 8 * d) {
+      const pr = pts[(i - 1 + n) % n], vx = (p1[0] - pr[0]) + (p2[0] - pts[i][0]), vy = (p1[1] - pr[1]) + (p2[1] - pts[i][1]);
+      const vl = Math.hypot(vx, vy) || 1;  // 2つの辺の内向き法線の和＝角の二等分線
+      out.push([pts[i][0] + vx / vl * d, pts[i][1] + vy / vl * d]); continue;
+    }
+    out.push(q);
+  }
+  return out;
+}
+
+/** 画像（幅W×高さH）の中の枠の幾何。{type, ...} */
+function frameArea(p, W, H) {
+  if (SQUARE_SHAPES.has(p.shape)) { const d = Math.min(W, H); return [(W - d) / 2, (H - d) / 2, (W + d) / 2, (H + d) / 2]; }
+  return [0, 0, W, H];
+}
+function shapeGeom(p, W, H) {
+  const fa = frameArea(p, W, H), D = Math.min(fa[2] - fa[0], fa[3] - fa[1]);
+  const m = p.margin / 100 * D;
+  const lw = p.frame_on ? Math.max(0, p.line_width / 100 * D) : 0;
+  const box = [fa[0] + m, fa[1] + m, fa[2] - m, fa[3] - m];
+  const bw = box[2] - box[0], bh = box[3] - box[1];
+  if (bw <= 1 || bh <= 1) return null;
+  const s = p.shape;
+  let g;
+  if (s === "none") return { type: "rrect", x: 0, y: 0, w: W, h: H, r: 0, lw: 0, D, W, H };  // 枠なし：画像全体が内側
+  if (s === "circle" || s === "ellipse") g = { type: "ellipse", cx: (box[0] + box[2]) / 2, cy: (box[1] + box[3]) / 2, rx: bw / 2, ry: bh / 2 };
+  else if (["square", "rect", "rounded", "rrect"].includes(s)) {
+    const r = (s === "square" || s === "rect") ? 0 : Math.min(p.radius / 100 * D, bw / 2, bh / 2);
+    g = { type: "rrect", x: box[0], y: box[1], w: bw, h: bh, r };
+  } else if (["hexagon", "octagon", "diamond", "triangle"].includes(s)) {
+    const [n, rot] = { hexagon: [6, 0], octagon: [8, 22.5], diamond: [4, 0], triangle: [3, -90] }[s];
+    g = { type: "poly", rings: [fitStretch(polyRings(n, rot), box)], convex: true };
+  } else {
+    const sh = s.startsWith("u:") ? userShapes.find(u => "u:" + u.id === s) : SAMPLE[s];
+    if (!sh) return shapeGeom(Object.assign({}, p, { shape: "circle" }), W, H);
+    const k = Math.min(bw / sh.w, bh / sh.h), ox = W / 2 - sh.w * k / 2, oy = H / 2 - sh.h * k / 2;
+    const rings = sh.rings.map(r => r.map(([x, y]) => [ox + x * k, oy + y * k]));
+    g = { type: "poly", rings, convex: isConvex(rings), simple: !s.startsWith("u:") };  // simple: 辺をずらして縮めても形が崩れない見本の形
+  }
+  g.lw = lw; g.D = D; g.W = W; g.H = H;
+  return g;
+}
+function geomPath(g) {
+  const path = new Path2D();
+  if (g.type === "ellipse") path.ellipse(g.cx, g.cy, Math.max(0, g.rx), Math.max(0, g.ry), 0, 0, Math.PI * 2);
+  else if (g.type === "rrect") {
+    if (g.r > 0 && path.roundRect) path.roundRect(g.x, g.y, g.w, g.h, g.r);
+    else if (g.r > 0) roundRectPath(path, g.x, g.y, g.w, g.h, g.r);
+    else path.rect(g.x, g.y, g.w, g.h);
+  } else for (const r of g.rings) { r.forEach(([x, y], i) => i ? path.lineTo(x, y) : path.moveTo(x, y)); path.closePath(); }
+  return path;
+}
+function roundRectPath(pa, x, y, w, h, r) {
+  pa.moveTo(x + r, y); pa.arcTo(x + w, y, x + w, y + h, r); pa.arcTo(x + w, y + h, x, y + h, r);
+  pa.arcTo(x, y + h, x, y, r); pa.arcTo(x, y, x + w, y, r); pa.closePath();
+}
+/** 内側へ d だけ縮めた幾何（ベクター出力で、線の中心をここに置く） */
+function insetGeom(g, d) {
+  if (d <= 0) return g;
+  if (g.type === "ellipse") return Object.assign({}, g, { rx: Math.max(0.5, g.rx - d), ry: Math.max(0.5, g.ry - d) });
+  if (g.type === "rrect") return Object.assign({}, g, { x: g.x + d, y: g.y + d, w: Math.max(1, g.w - 2 * d), h: Math.max(1, g.h - 2 * d), r: Math.max(0, g.r - d) });
+  if (g.convex || g.simple) return Object.assign({}, g, { rings: g.rings.map(r => insetPolygon(r, d)) });
+  return Object.assign({}, g, { rings: sdfInset(g.rings, d), convex: false });
+}
+
+// ---------------------------------------------------------------- 輪郭の取り出し（等高線・距離変換）
+function marchingSquares(v, w, h, level) {
+  // v: (w×h) の値。level 以上が内側。外周は外側として扱う
+  const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h) ? -1e9 : v[y * w + x];
+  const W1 = w + 2, segs = [], pts = new Map();
+  const edgePoint = (key, ax, ay, bx, by) => {
+    let p = pts.get(key);
+    if (!p) {
+      const va = at(ax, ay), vb = at(bx, by);
+      let t = (level - va) / (vb - va); if (!isFinite(t)) t = 0.5; t = Math.min(1, Math.max(0, t));
+      p = [ax + (bx - ax) * t, ay + (by - ay) * t]; pts.set(key, p);
+    }
+    return key;
+  };
+  for (let y = -1; y < h; y++) for (let x = -1; x < w; x++) {
+    const tl = at(x, y) >= level, tr = at(x + 1, y) >= level, br = at(x + 1, y + 1) >= level, bl = at(x, y + 1) >= level;
+    const c = (tl ? 8 : 0) | (tr ? 4 : 0) | (br ? 2 : 0) | (bl ? 1 : 0);
+    if (c === 0 || c === 15) continue;
+    const gi = (y + 1) * W1 + (x + 1);
+    const T = () => edgePoint(gi * 2, x, y, x + 1, y), B = () => edgePoint((gi + W1) * 2, x, y + 1, x + 1, y + 1);
+    const L = () => edgePoint(gi * 2 + 1, x, y, x, y + 1), R = () => edgePoint((gi + 1) * 2 + 1, x + 1, y, x + 1, y + 1);
+    const cut = { tl: [T, L], tr: [T, R], br: [R, B], bl: [B, L] };
+    const ins = { tl, tr, br, bl }, n = tl + tr + br + bl;
+    if (c === 5 || c === 10) {
+      const center = (at(x, y) + at(x + 1, y) + at(x + 1, y + 1) + at(x, y + 1)) / 4 >= level;
+      for (const k of ["tl", "tr", "br", "bl"]) if (ins[k] !== center) segs.push([cut[k][0](), cut[k][1]()]);
+    } else if (n === 1 || n === 3) {
+      const odd = Object.keys(ins).find(k => ins[k] === (n === 1));
+      segs.push([cut[odd][0](), cut[odd][1]()]);
+    } else {
+      if (tl && tr || bl && br) segs.push([L(), R()]); else segs.push([T(), B()]);
+    }
+  }
+  // 線分をつないで閉じた輪にする
+  const adj = new Map();
+  segs.forEach((s, i) => { for (const k of s) { if (!adj.has(k)) adj.set(k, []); adj.get(k).push(i); } });
+  const used = new Uint8Array(segs.length), rings = [];
+  for (let i = 0; i < segs.length; i++) {
+    if (used[i]) continue;
+    used[i] = 1;
+    const start = segs[i][0]; let cur = segs[i][1]; const ring = [pts.get(start)];
+    for (let guard = 0; cur !== start && guard < segs.length + 2; guard++) {
+      ring.push(pts.get(cur));
+      const nx = (adj.get(cur) || []).find(j => !used[j]);
+      if (nx === undefined) break;
+      used[nx] = 1; cur = segs[nx][0] === cur ? segs[nx][1] : segs[nx][0];
+    }
+    if (ring.length >= 3) rings.push(ring);
+  }
+  return rings;
+}
+function simplifyRing(r, tol) {
+  if (r.length < 8) return r;
+  const pts = r.concat([r[0]]), keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+  // 輪の最遠点で2つに分けて、それぞれ Douglas–Peucker
+  let far = 0, fd = -1;
+  for (let i = 1; i < pts.length - 1; i++) { const d = Math.hypot(pts[i][0] - pts[0][0], pts[i][1] - pts[0][1]); if (d > fd) { fd = d; far = i; } }
+  keep[far] = 1;
+  const stack = [[0, far], [far, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop(); let idx = -1, md = tol;
+    const [ax, ay] = pts[a], [bx, by] = pts[b], L = Math.hypot(bx - ax, by - ay) || 1e-9;
+    for (let i = a + 1; i < b; i++) {
+      const d = Math.abs((bx - ax) * (ay - pts[i][1]) - (ax - pts[i][0]) * (by - ay)) / L;
+      if (d > md) { md = d; idx = i; }
+    }
+    if (idx >= 0) { keep[idx] = 1; stack.push([a, idx], [idx, b]); }
+  }
+  const out = []; for (let i = 0; i < pts.length - 1; i++) if (keep[i]) out.push(pts[i]);
+  return out;
+}
+function edt1d(f, n, d, v, z) {
+  let k = 0; v[0] = 0; z[0] = -Infinity; z[1] = Infinity;
+  for (let q = 1; q < n; q++) {
+    let s;
+    while (true) { const r = v[k]; s = ((f[q] + q * q) - (f[r] + r * r)) / (2 * q - 2 * r); if (s <= z[k] && k > 0) k--; else break; }
+    k++; v[k] = q; z[k] = s; z[k + 1] = Infinity;
+  }
+  k = 0;
+  for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; const r = v[k]; d[q] = (q - r) * (q - r) + f[r]; }
+}
+function edt(seed, w, h) {
+  // seed[i]=1 の画素までの距離²
+  const INF = 1e20, g = new Float64Array(w * h), n = Math.max(w, h);
+  const f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
+  for (let i = 0; i < w * h; i++) g[i] = seed[i] ? 0 : INF;
+  for (let x = 0; x < w; x++) { for (let y = 0; y < h; y++) f[y] = g[y * w + x]; edt1d(f, h, d, v, z); for (let y = 0; y < h; y++) g[y * w + x] = d[y]; }
+  for (let y = 0; y < h; y++) { for (let x = 0; x < w; x++) f[x] = g[y * w + x]; edt1d(f, w, d, v, z); for (let x = 0; x < w; x++) g[y * w + x] = d[x]; }
+  return g;
+}
+const insetCache = new Map();
+function sdfInset(rings, dist) {
+  const key = JSON.stringify([rings.length, rings[0].length, rings[0][0], rings[0][1], dist]);
+  if (insetCache.has(key)) return insetCache.get(key);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const r of rings) for (const [x, y] of r) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  const k = 900 / Math.max(x1 - x0, y1 - y0), pad = 3;
+  const w = Math.ceil((x1 - x0) * k) + 2 * pad, h = Math.ceil((y1 - y0) * k) + 2 * pad;
+  const cv = new OffscreenCanvasOr(w, h), ctx = cv.getContext("2d");
+  ctx.setTransform(k, 0, 0, k, pad - x0 * k, pad - y0 * k);
+  ctx.fill(geomPath({ type: "poly", rings }), "evenodd");
+  const a = ctx.getImageData(0, 0, w, h).data, inside = new Uint8Array(w * h), outside = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) { const on = a[i * 4 + 3] >= 128; inside[i] = on; outside[i] = !on; }
+  const dOut = edt(outside, w, h), dIn = edt(inside, w, h), sd = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) sd[i] = inside[i] ? Math.sqrt(dOut[i]) - 0.5 : 0.5 - Math.sqrt(dIn[i]);
+  const res = marchingSquares(sd, w, h, dist * k).map(r => simplifyRing(r, 0.35).map(([x, y]) => [(x - pad + 0.5) / k + x0, (y - pad + 0.5) / k + y0]));
+  if (insetCache.size > 30) insetCache.clear();
+  insetCache.set(key, res);
+  return res;
+}
+function OffscreenCanvasOr(w, h) { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
+
+// ================================================================ 文字
+const fontStr = (p, px) => `${p.font_weight} ${px}px ${cssFamily(p.font_family)}`;
+const cssFamily = f => `"${String(f).replace(/["\\]/g, "")}", sans-serif`;
+const mctx = OffscreenCanvasOr(8, 8).getContext("2d");
+function refBox(p) {
+  // 数字「0」の上端・下端（ベースライン基準、1000px のとき）
+  mctx.font = fontStr(p, 1000);
+  for (const ch of ["0", "H", "あ"]) {
+    const m = mctx.measureText(ch);
+    if (m.actualBoundingBoxAscent + m.actualBoundingBoxDescent > 0) return [-m.actualBoundingBoxAscent, m.actualBoundingBoxDescent];
+  }
+  return [-800, 0];
+}
+/** 文字の配置（画像の座標）。origin はベースラインの左端 */
+function textLayout(item, p, W, H) {
+  p = itemP(item, p);
+  const fa = frameArea(p, W, H), D = Math.min(fa[2] - fa[0], fa[3] - fa[1]);
+  const T = p.text_height / 100 * D;
+  const [t0, t1] = refBox(p);
+  const size = Math.max(2, 1000 * T / (t1 - t0));
+  mctx.font = fontStr(p, size);
+  const s = item.text, m = mctx.measureText(s);
+  const bold = Math.max(0, p.bold / 100 * T);
+  const rt = t0 * size / 1000, rb = t1 * size / 1000;
+  const x0 = -m.actualBoundingBoxLeft - bold, x1 = m.actualBoundingBoxRight + bold;
+  let y0, y1;
+  if (p.valign === "ref") { y0 = rt - bold; y1 = rb + bold; }
+  else { y0 = -m.actualBoundingBoxAscent - bold; y1 = m.actualBoundingBoxDescent + bold; }
+  if (!(x1 > x0)) return null;
+  let u = 1, hx = 1;
+  const maxw = p.max_width / 100 * (fa[2] - fa[0]);
+  if (x1 - x0 > maxw && maxw > 0) { const k = maxw / (x1 - x0); u = Math.max(k, Math.min(1, p.min_scale / 100)); hx = k / u; }
+  const sx = u * hx, sy = u;
+  const tx = W / 2 + p.offset_x / 100 * W, ty = H / 2 + p.offset_y / 100 * H;
+  const ox = tx - (x0 + x1) / 2 * sx, oy = ty - (y0 + y1) / 2 * sy;
+  const [a, l] = item.hide;
+  const runs = l ? [[s.slice(0, a), 0, false], [s.slice(a, a + l), mctx.measureText(s.slice(0, a)).width, true],
+                    [s.slice(a + l), mctx.measureText(s.slice(0, a + l)).width, false]]
+                 : [[s, 0, false]];
+  return { p, size, u, hx, sx, sy, ox, oy, bold, runs: runs.filter(r => r[0]), advance: m.width, s,
+           fontPx: size * u, inkTop: oy - m.actualBoundingBoxAscent * sy, inkBottom: oy + m.actualBoundingBoxDescent * sy };
+}
+
+// ================================================================ 描画（ラスター）
+function render(item, p, scale = 1) {
+  const W = Math.max(8, Math.round(p.width * scale)), H = Math.max(8, Math.round(p.height * scale));
+  const cv = OffscreenCanvasOr(W, H), ctx = cv.getContext("2d");
+  if (!p.bg_transparent) { ctx.fillStyle = p.bg_color; ctx.fillRect(0, 0, W, H); }
+  const g = shapeGeom(p, W, H);
+  if (g) {
+    const path = geomPath(g);
+    if (!p.fill_transparent) { ctx.fillStyle = p.fill_color; ctx.fill(path, "evenodd"); }
+    if (g.lw > 0) {
+      // 線の太さの2倍で輪郭を描き、形の内側だけ残す＝内側に lw の帯
+      const lay = OffscreenCanvasOr(W, H), lc = lay.getContext("2d");
+      lc.save(); lc.clip(path, "evenodd"); lc.lineWidth = g.lw * 2; lc.lineJoin = "miter"; lc.miterLimit = 50;
+      lc.strokeStyle = p.frame_color; lc.stroke(path); lc.restore();
+      if (p.fill_transparent) { lc.globalCompositeOperation = "destination-in"; lc.fill(path, "evenodd"); }
+      ctx.drawImage(lay, 0, 0);
+    }
+  }
+  const t = textLayout(item, p, W, H);
+  if (t) {
+    ctx.save();
+    ctx.translate(t.ox, t.oy); ctx.scale(t.sx, t.sy);
+    ctx.font = fontStr(t.p, t.size); ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+    ctx.fillStyle = ctx.strokeStyle = p.text_color; ctx.lineJoin = "round"; ctx.lineWidth = t.bold * 2;
+    for (const [str, x, hidden] of t.runs) {
+      if (hidden) continue;
+      ctx.fillText(str, x, 0);
+      if (t.bold > 0) ctx.strokeText(str, x, 0);
+    }
+    ctx.restore();
+  }
+  return cv;
+}
+
+// ---------------------------------------------------------------- 解像度（dpi）を書き込む
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(bytes) { let c = 0xffffffff; for (const b of bytes) c = CRC_TABLE[(c ^ b) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+function pngWithDpi(buf, dpi) {
+  const src = new Uint8Array(buf), ppm = Math.round(dpi / 0.0254);
+  const chunk = new Uint8Array(21), dv = new DataView(chunk.buffer);
+  dv.setUint32(0, 9); chunk.set([112, 72, 89, 115], 4); dv.setUint32(8, ppm); dv.setUint32(12, ppm); chunk[16] = 1;
+  dv.setUint32(17, crc32(chunk.subarray(4, 17)));
+  const at = 8 + 25; // シグネチャ + IHDR の直後
+  const out = new Uint8Array(src.length + 21);
+  out.set(src.subarray(0, at)); out.set(chunk, at); out.set(src.subarray(at), at + 21);
+  return out;
+}
+function jpegWithDpi(buf, dpi) {
+  const b = new Uint8Array(buf);
+  if (b[2] === 0xff && b[3] === 0xe0 && String.fromCharCode(b[6], b[7], b[8], b[9]) === "JFIF") {
+    b[13] = 1; b[14] = dpi >> 8; b[15] = dpi & 255; b[16] = dpi >> 8; b[17] = dpi & 255;
+  }
+  return b;
+}
+async function rasterBytes(item, p) {
+  let cv = render(item, p);
+  if (p.fmt === "JPEG") {
+    const c2 = OffscreenCanvasOr(cv.width, cv.height), x = c2.getContext("2d");
+    x.fillStyle = p.bg_transparent ? "#FFFFFF" : p.bg_color; x.fillRect(0, 0, cv.width, cv.height); x.drawImage(cv, 0, 0); cv = c2;
+  }
+  const blob = await new Promise(res => cv.toBlob(res, MIME[p.fmt], p.fmt === "JPEG" ? p.jpeg_quality / 100 : p.fmt === "WEBP" ? 1 : undefined));
+  if (!blob) throw new Error("画像を作れませんでした（サイズが大きすぎる可能性があります）");
+  const buf = await blob.arrayBuffer();
+  const dpi = Math.max(1, Math.round(+p.dpi || 72));
+  if (p.fmt === "PNG") return pngWithDpi(buf, dpi);
+  if (p.fmt === "JPEG") return jpegWithDpi(buf, Math.min(65535, dpi));
+  return new Uint8Array(buf);
+}
+
+// ================================================================ SVG
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const f2 = v => (Math.round(v * 100) / 100).toString();
+function svgShape(g, attrs) {
+  if (g.type === "ellipse") return `<ellipse cx="${f2(g.cx)}" cy="${f2(g.cy)}" rx="${f2(g.rx)}" ry="${f2(g.ry)}" ${attrs}/>`;
+  if (g.type === "rrect") return `<rect x="${f2(g.x)}" y="${f2(g.y)}" width="${f2(g.w)}" height="${f2(g.h)}"${g.r > 0 ? ` rx="${f2(g.r)}"` : ""} ${attrs}/>`;
+  const d = g.rings.map(r => "M" + r.map(([x, y]) => f2(x) + " " + f2(y)).join("L") + "Z").join("");
+  return `<path d="${d}" fill-rule="evenodd" ${attrs}/>`;
+}
+function svgString(item, p) {
+  const W = +p.width, H = +p.height, inch = W / (+p.dpi || 96);
+  const out = [`<?xml version="1.0" encoding="UTF-8"?>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${f2(inch * 25.4)}mm" height="${f2(H / (+p.dpi || 96) * 25.4)}mm" viewBox="0 0 ${W} ${H}">`];
+  if (!p.bg_transparent) out.push(`<rect width="${W}" height="${H}" fill="${p.bg_color}"/>`);
+  const g = shapeGeom(p, W, H);
+  if (g) {
+    const gi = g.lw > 0 ? insetGeom(g, g.lw / 2) : g;
+    const fill = p.fill_transparent ? "none" : p.fill_color;
+    const stroke = g.lw > 0 ? ` stroke="${p.frame_color}" stroke-width="${f2(g.lw)}" stroke-linejoin="miter" stroke-miterlimit="8"` : "";
+    if (fill !== "none" || stroke) out.push(svgShape(gi, `fill="${fill}"${stroke}`));
+  }
+  const t = textLayout(item, p, W, H);
+  if (t) {
+    const bold = t.bold > 0 ? ` stroke="${p.text_color}" stroke-width="${f2(t.bold * 2)}" stroke-linejoin="round"` : "";
+    const spans = t.runs.map(([str, , hid]) => hid ? `<tspan fill-opacity="0" stroke-opacity="0">${esc(str)}</tspan>` : esc(str)).join("");
+    out.push(`<text transform="translate(${f2(t.ox)} ${f2(t.oy)}) scale(${f2(t.sx / t.sy * 1000) / 1000} 1)" font-family="${esc(t.p.font_family)}" font-weight="${p.font_weight}" font-size="${f2(t.fontPx)}" fill="${p.text_color}"${bold} xml:space="preserve">${spans}</text>`);
+  }
+  out.push("</svg>");
+  return out.join("\n");
+}
+
+// ================================================================ PowerPoint
+function fontVMetrics(p) {
+  mctx.font = fontStr(p, 1000);
+  const m = mctx.measureText("0");
+  const a = m.fontBoundingBoxAscent, d = m.fontBoundingBoxDescent;
+  return (a > 0 && d >= 0) ? [a, d] : [905, 212];
+}
+const hex = c => c.replace("#", "").toUpperCase();
+function addPptxItem(pptx, slide, item, p, X, Y, scaleIn) {
+  // scaleIn: 画像の1px が何インチか
+  const W = +p.width, H = +p.height, inch = v => v * scaleIn, pt = v => v * scaleIn * 72;
+  if (!p.bg_transparent) slide.addShape(pptx.ShapeType.rect, { x: X, y: Y, w: inch(W), h: inch(H), fill: { color: hex(p.bg_color) }, line: { type: "none" } });
+  const g = shapeGeom(p, W, H);
+  const t = textLayout(item, p, W, H);
+  const gi = g ? (g.lw > 0 ? insetGeom(g, g.lw / 2) : g) : null;
+  // 図形の外枠（テキストの基準になる）
+  let bx, by, bw, bh, shapeOpt = {};
+  if (gi && gi.type === "ellipse") { bx = gi.cx - gi.rx; by = gi.cy - gi.ry; bw = gi.rx * 2; bh = gi.ry * 2; shapeOpt.shape = pptx.ShapeType.ellipse; }
+  else if (gi && gi.type === "rrect") {
+    bx = gi.x; by = gi.y; bw = gi.w; bh = gi.h;
+    if (gi.r > 0) { shapeOpt.shape = pptx.ShapeType.roundRect; shapeOpt.rectRadius = inch(gi.r); } else shapeOpt.shape = pptx.ShapeType.rect;
+  } else if (gi) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const r of gi.rings) for (const [x, y] of r) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    bx = x0; by = y0; bw = x1 - x0; bh = y1 - y0;
+    shapeOpt.shape = pptx.ShapeType.custGeom;
+    const pts = [];
+    for (const r of gi.rings) { r.forEach(([x, y], i) => pts.push(i ? { x: inch(x - x0), y: inch(y - y0) } : { x: inch(x - x0), y: inch(y - y0), moveTo: true })); pts.push({ close: true }); }
+    shapeOpt.points = pts;
+  } else { bx = 0; by = 0; bw = W; bh = H; shapeOpt.shape = pptx.ShapeType.rect; }
+  shapeOpt.fill = (!g || p.fill_transparent) ? { type: "none" } : { color: hex(p.fill_color) };
+  shapeOpt.line = g && g.lw > 0 ? { color: hex(p.frame_color), width: pt(g.lw) } : { type: "none" };
+
+  let runs = [{ text: "" }], margin = [0, 0, 0, 0], fontSize = 10;
+  if (t) {
+    // PowerPoint の1行：高さ 1.2×文字サイズ、ベースラインは (ascent/(ascent+descent)) の位置
+    const F = t.fontPx * t.hx, [fa, fd] = fontVMetrics(t.p);
+    const L = 1.2 * F, asc = L * fa / (fa + fd);
+    const lineC = t.oy - asc + L / 2;                       // 行の中心（画像の座標）
+    const advC = t.ox + t.advance * t.sx / 2;               // 文字列の送り幅の中心
+    const dy = 2 * (lineC - (by + bh / 2)), dx = 2 * (advC - (bx + bw / 2));
+    margin = [pt(Math.max(0, dx)), pt(Math.max(0, -dx)), pt(Math.max(0, -dy)), pt(Math.max(0, dy))]; // 左, 右, 下, 上
+    fontSize = Math.round(pt(F) * 100) / 100;
+    const base = { color: hex(p.text_color) };
+    if (t.bold > 0) base.outline = { size: pt(t.bold * 2 * t.hx), color: hex(p.text_color) };
+    runs = t.runs.map(([str, , hid]) => ({ text: str, options: hid ? Object.assign({}, base, { transparency: 100, outline: undefined }) : base }));
+  }
+  slide.addText(runs, Object.assign(shapeOpt, {
+    x: X + inch(bx), y: Y + inch(by), w: inch(bw), h: inch(bh),
+    fontFace: t ? t.p.font_family : p.font_family, fontSize, bold: +p.font_weight >= 600, align: "center", valign: "middle",
+    margin, wrap: false, fit: "none", isTextBox: false,
+  }));
+}
+async function makePptx(items, p, onProgress) {
+  if (typeof PptxGenJS === "undefined") throw new Error("PowerPoint 用の部品を読み込めませんでした（ネットワークを確認してください）");
+  const pptx = new PptxGenJS();
+  const dpi = Math.max(1, +p.dpi || 96), wIn = p.width / dpi, hIn = p.height / dpi, sc = 1 / dpi;
+  pptx.author = "ラベルジェネレータ"; pptx.title = "ラベル";
+  if (p.pptx_layout === "single") {
+    pptx.defineLayout({ name: "LBL", width: wIn, height: hIn }); pptx.layout = "LBL";
+    for (let i = 0; i < items.length; i++) {
+      addPptxItem(pptx, pptx.addSlide(), items[i], p, 0, 0, sc);
+      if (i % 10 === 9) { onProgress(i + 1, items.length); await tick(); }
+    }
+  } else {
+    const A4W = 210 / 25.4, A4H = 297 / 25.4, M = 10 / 25.4, G = 5 / 25.4;
+    pptx.defineLayout({ name: "A4P", width: A4W, height: A4H }); pptx.layout = "A4P";
+    let k = sc, cw = wIn, ch = hIn;
+    if (cw > A4W - 2 * M || ch > A4H - 2 * M) { const r = Math.min((A4W - 2 * M) / cw, (A4H - 2 * M) / ch); k *= r; cw *= r; ch *= r; }
+    const cols = Math.max(1, Math.floor((A4W - 2 * M + G) / (cw + G))), rows = Math.max(1, Math.floor((A4H - 2 * M + G) / (ch + G)));
+    const x0 = (A4W - (cols * cw + (cols - 1) * G)) / 2;
+    let slide = null;
+    for (let i = 0; i < items.length; i++) {
+      const j = i % (cols * rows);
+      if (j === 0) slide = pptx.addSlide();
+      addPptxItem(pptx, slide, items[i], p, x0 + (j % cols) * (cw + G), M + Math.floor(j / cols) * (ch + G), k);
+      if (i % 10 === 9) { onProgress(i + 1, items.length); await tick(); }
+    }
+  }
+  return fixPptx(await pptx.write({ outputType: "uint8array" }));
+}
+/** PptxGenJS の出力を整える：線の角をとがらせる（miter）、文字の縦位置がずれる指定を外す */
+async function fixPptx(bytes) {
+  const zip = await JSZip.loadAsync(bytes);
+  for (const name of Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))) {
+    let x = await zip.file(name).async("string");
+    x = x.replace(/ pitchFamily="[^"]*" charset="[^"]*"/g, "");
+    x = x.replace(/<a:endParaRPr[^>]*\/>/g, "");  // 段落末の既定フォント指定があると、行の高さが変わって文字が上にずれる
+    x = x.replace(/(<a:ln w="\d+">)(<a:solidFill>.*?<\/a:solidFill>)(<a:prstDash [^>]*\/>)?/g, (m, a, b, c) => a + b + (c || "") + '<a:miter lim="800000"/>');
+    zip.file(name, x);
+  }
+  return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+}
+
+// ================================================================ ファイル名・保存
+function fileBase(it, p) {
+  let b = String(p.filename || "{text}").replace(/\{(text|index|n)(?::0?(\d+)d?)?\}/g, (_, k, w) => {
+    const v = k === "text" ? it.label : String(it.index); return w && k !== "text" ? v.padStart(+w, "0") : v; });
+  b = b.replace(/[\\/:*?"<>|\r\n\t]/g, "_").trim();
+  return b || String(it.index).padStart(3, "0");
+}
+function download(data, name, type) {
+  const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type }));
+  const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+async function fileFor(item, p) {
+  if (p.fmt === "SVG") return new TextEncoder().encode(svgString(item, p));
+  return rasterBytes(item, p);
+}
+
+// ================================================================ フォント
+const FONT_CANDIDATES = [
+  "Arial Narrow", "Arial", "Arial Black", "Helvetica Neue", "Helvetica", "Segoe UI", "Bahnschrift", "Calibri", "Impact",
+  "Verdana", "Tahoma", "Franklin Gothic Medium", "Century Gothic", "Gill Sans", "Futura", "Avenir Next Condensed", "DIN Alternate",
+  "Times New Roman", "Georgia", "Consolas", "Courier New",
+  "Yu Gothic", "游ゴシック", "Meiryo", "メイリオ", "MS Gothic", "ＭＳ ゴシック", "BIZ UDPGothic", "BIZ UDGothic", "Yu Mincho", "游明朝",
+  "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Hiragino Maru Gothic ProN", "Noto Sans JP", "Noto Sans CJK JP",
+];
+const WEB_FONTS = ["Roboto Condensed", "Oswald", "Barlow Condensed", "Bebas Neue", "Anton", "Roboto Mono",
+  "Noto Sans JP", "M PLUS Rounded 1c", "Zen Maru Gothic", "Kosugi Maru", "Dela Gothic One", "BIZ UDPGothic"];
+const uploadedFonts = new Set();
+function fontInstalled(name) {
+  const c = mctx, probe = "0123456789ABCabcあア漢";
+  for (const base of ["monospace", "serif", "sans-serif"]) {
+    c.font = `72px ${base}`; const w0 = c.measureText(probe).width;
+    c.font = `72px "${name}", ${base}`;
+    if (c.measureText(probe).width !== w0) return true;
+  }
+  return false;
+}
+const loadedWeb = new Set();
+function ensureWebFont(name) {
+  if (!WEB_FONTS.includes(name) || loadedWeb.has(name)) return;
+  loadedWeb.add(name);
+  const l = document.createElement("link"); l.rel = "stylesheet";
+  l.href = "https://fonts.googleapis.com/css2?family=" + encodeURIComponent(name).replace(/%20/g, "+") + ":wght@400;700;900&display=block";
+  document.head.appendChild(l);
+}
+async function fontReady(p, sample) {
+  sample = sample || "0123456789";
+  const ps = [p];
+  if (p.jp_auto && JP_RE.test(sample)) ps.push(Object.assign({}, p, { font_family: jpFamily(p) }));
+  for (const q of ps) {
+    ensureWebFont(q.font_family);
+    try { await document.fonts.load(fontStr(q, 40), sample.slice(0, 2000)); } catch { /* 読めないフォントは代わりのフォントで描く */ }
+  }
+  try { await document.fonts.ready; } catch { /* 同上 */ }
+}
+
+// ---------------------------------------------------------------- 日本語フォント
+// 丸数字など・ローマ数字・記号/かな・漢字・互換漢字・全角
+const JP_RE = /[①-⓿Ⅰ-ⅿ　-ヿ㐀-鿿豈-﫿＀-￯]/;
+const JP_DEFAULTS = ["Yu Gothic", "游ゴシック", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", "メイリオ", "BIZ UDPGothic", "Noto Sans JP", "Noto Sans CJK JP"];
+let autoJp = null;
+function jpFamily(p) {
+  if (p.jp_font) return p.jp_font;
+  if (!autoJp) autoJp = JP_DEFAULTS.find(fontInstalled) || "Noto Sans JP";  // 無ければ Webフォント
+  return autoJp;
+}
+/** その文字に使う設定（日本語を含むときは日本語フォントに差し替える） */
+function itemP(item, p) {
+  return p.jp_auto && JP_RE.test(item.text) ? Object.assign({}, p, { font_family: jpFamily(p) }) : p;
+}
+
+function buildFontSelect() {
+  fillFontSelect($("font_family"), P.font_family);
+  fillFontSelect($("jp_font"), P.jp_font, true);
+}
+function fillFontSelect(sel, cur, jp) {
+  sel.innerHTML = "";
+  if (jp) { const o = document.createElement("option"); o.value = ""; o.textContent = "自動（" + jpFamily(Object.assign({}, P, { jp_font: "" })) + "）"; sel.appendChild(o); }
+  const add = (label, names) => {
+    if (!names.length) return;
+    const og = document.createElement("optgroup"); og.label = label;
+    for (const n of names) { const o = document.createElement("option"); o.value = n; o.textContent = n; og.appendChild(o); }
+    sel.appendChild(og);
+  };
+  const local = FONT_CANDIDATES.filter(fontInstalled);
+  add("読み込んだフォントファイル", [...uploadedFonts]);
+  add("このPCのフォント", [...new Set(local.concat(extraFonts))].sort((a, b) => a.localeCompare(b, "ja")));
+  add("Webフォント（Google Fonts）", WEB_FONTS);
+  if (![...sel.options].some(o => o.value === cur)) {
+    const o = document.createElement("option"); o.value = cur; o.textContent = cur + "（このPCに無い可能性）"; sel.prepend(o);
+  }
+  sel.value = cur;
+}
+
+// ---------------------------------------------------------------- CSV
+function parseCsv(text) {
+  text = text.replace(/^﻿/, "");
+  const first = text.split(/\r?\n/, 1)[0] || "";
+  const delim = first.includes("\t") && !first.includes(",") ? "\t" : (first.split(";").length > first.split(",").length ? ";" : ",");
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += ch;
+    } else if (ch === '"' && cell === "") q = true;
+    else if (ch === delim) { row.push(cell.trim()); cell = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell.trim()); rows.push(row); row = []; cell = "";
+    } else cell += ch;
+  }
+  if (cell !== "" || row.length) { row.push(cell.trim()); rows.push(row); }
+  return rows.filter(r => r.some(Boolean));
+}
+async function readCsvFile(file) {
+  const buf = await file.arrayBuffer();
+  let text;
+  try { text = new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+  catch { text = new TextDecoder("shift_jis").decode(buf); }  // Excel で保存した CSV
+  return parseCsv(text);
+}
+let csvRows = null;
+function csvValues(col, header) {
+  return (header ? csvRows.slice(1) : csvRows).map(r => r[col] || "").filter(Boolean);
+}
+function applyCsv(col, header) {
+  const vals = csvValues(col, header);
+  P.mode = "list"; P.items = vals.join("\n"); toForm(); save(); schedule();
+  $("status").textContent = `CSV から ${vals.length} 個を読み込みました`;
+}
+function showCsvDialog(name) {
+  const ncol = Math.max(...csvRows.map(r => r.length));
+  $("csvInfo").textContent = `${name}（${csvRows.length} 行・${ncol} 列）`;
+  const sel = $("csvCol"), head = $("csvHead");
+  const fill = () => {
+    const keep = sel.selectedIndex;
+    sel.innerHTML = "";
+    for (let i = 0; i < ncol; i++) {
+      const o = document.createElement("option"); o.value = i;
+      o.textContent = `${i + 1}列目` + (head.checked && csvRows[0][i] ? "：" + csvRows[0][i] : ""); sel.appendChild(o);
+    }
+    sel.selectedIndex = Math.max(0, keep);
+    const v = csvValues(+sel.value, head.checked);
+    $("csvSample").textContent = `${v.length} 個：` + v.slice(0, 8).join("、") + (v.length > 8 ? "…" : "");
+  };
+  sel.onchange = head.onchange = fill;
+  fill();
+  $("csvOk").onclick = () => { applyCsv(+sel.value, head.checked); $("dlgCsv").close(); };
+  $("dlgCsv").showModal();
+}
+
+// ================================================================ 画面
+const $ = id => document.getElementById(id);
+const NUM = ["start", "end", "step", "digits", "text_height", "max_width", "min_scale", "bold", "offset_x", "offset_y",
+  "line_width", "margin", "radius", "width", "height", "dpi", "jpeg_quality"];
+const STR = ["pad", "prefix", "suffix", "items", "font_family", "jp_font", "font_weight", "valign", "shape", "fmt", "pptx_layout", "filename"];
+const BOOL = ["frame_on", "fill_transparent", "bg_transparent", "jp_auto"];
+const COLORS = ["text_color", "frame_color", "fill_color", "bg_color"];
+const RANGES = ["text_height", "max_width", "line_width", "radius"];
+let current = 0;
+
+function buildShapeSelect() {
+  const sel = $("shape"); sel.innerHTML = "";
+  const og1 = document.createElement("optgroup"); og1.label = "基本の形";
+  for (const [k, v] of SHAPES) { const o = document.createElement("option"); o.value = k; o.textContent = v; og1.appendChild(o); }
+  sel.appendChild(og1);
+  if (userShapes.length) {
+    const og2 = document.createElement("optgroup"); og2.label = "登録した形";
+    for (const s of userShapes) { const o = document.createElement("option"); o.value = "u:" + s.id; o.textContent = s.name; og2.appendChild(o); }
+    sel.appendChild(og2);
+  }
+  if (![...sel.options].some(o => o.value === P.shape)) P.shape = "circle";
+  sel.value = P.shape;
+}
+function toForm() {
+  for (const k of NUM.concat(STR)) if ($(k)) $(k).value = P[k];
+  for (const k of BOOL) $(k).checked = !!P[k];
+  for (const k of COLORS) { $(k).value = P[k].length === 7 ? P[k] : "#000000"; $(k + "_t").value = P[k].toUpperCase(); }
+  for (const k of RANGES) $(k + "_r").value = P[k];
+  document.querySelectorAll('input[name=mode]').forEach(r => r.checked = r.value === P.mode);
+  refreshVisibility();
+}
+function refreshVisibility() {
+  $("rangeBox").hidden = P.mode !== "range"; $("listBox").hidden = P.mode !== "list";
+  $("radiusRow").hidden = !["rounded", "rrect"].includes(P.shape);
+  $("jpegRow").hidden = P.fmt !== "JPEG"; $("pptxRow").hidden = P.fmt !== "PPTX";
+  $("btnGenerate").textContent = P.fmt === "PPTX" ? "PowerPoint を作成" : "まとめてダウンロード（ZIP）";
+  const dpi = +P.dpi || 96;
+  $("sizeInfo").textContent = `印刷サイズ：${(P.width / dpi * 25.4).toFixed(1)} × ${(P.height / dpi * 25.4).toFixed(1)} mm`;
+  for (const k of ["line_width", "line_width_r", "frame_on"]) $(k).disabled = k === "frame_on" ? P.shape === "none" : (!P.frame_on || P.shape === "none");
+  $("jp_font").disabled = !P.jp_auto;
+}
+function fromInput(e) {
+  const el = e.target, id = el.id;
+  if (el.name === "mode") P.mode = el.value;
+  else if (id.endsWith("_r") && RANGES.includes(id.slice(0, -2))) { P[id.slice(0, -2)] = +el.value; $(id.slice(0, -2)).value = el.value; }
+  else if (id.endsWith("_t") && COLORS.includes(id.slice(0, -2))) {
+    const k = id.slice(0, -2), v = el.value.trim();
+    if (/^#?[0-9a-f]{6}$/i.test(v)) { P[k] = (v[0] === "#" ? v : "#" + v).toUpperCase(); $(k).value = P[k]; } else return;
+  } else if (COLORS.includes(id)) { P[id] = el.value.toUpperCase(); $(id + "_t").value = P[id]; }
+  else if (NUM.includes(id)) { if (el.value === "" || isNaN(+el.value)) return; P[id] = +el.value; if (RANGES.includes(id)) $(id + "_r").value = el.value; }
+  else if (BOOL.includes(id)) P[id] = el.checked;
+  else if (STR.includes(id)) {
+    P[id] = el.value;
+    if (id === "shape") { const [th, mw, oy] = recOf(P.shape); Object.assign(P, { text_height: th, max_width: mw, offset_y: oy }); toForm(); }
+  } else return;
+  refreshVisibility(); save(); schedule();
+}
+let saveT = 0;
+function save() { clearTimeout(saveT); saveT = setTimeout(() => store.set("lblgen.settings", P), 300); }
+
+let previewT = 0, previewSeq = 0;
+function schedule() { clearTimeout(previewT); previewT = setTimeout(preview, 120); }
+async function preview() {
+  const seq = ++previewSeq; $("err").textContent = "";
+  let items;
+  try { items = makeItems(P); } catch (e) { $("err").textContent = e.message; $("countInfo").textContent = ""; return; }
+  $("countInfo").textContent = `${items.length} 個作ります（${items.length ? items[0].label + " 〜 " + items[items.length - 1].label : ""}）`;
+  if (!items.length) { $("thumbs").innerHTML = ""; return; }
+  await fontReady(P, items.slice(0, 50).map(i => i.text).join(""));
+  if (seq !== previewSeq) return;
+  current = Math.min(current, items.length - 1);
+  // 大きいプレビュー
+  const bigMax = 520, sc = Math.min(1, bigMax / Math.max(P.width, P.height));
+  const big = render(items[current], P, sc), bc = $("bigCanvas");
+  bc.width = big.width; bc.height = big.height; bc.getContext("2d").drawImage(big, 0, 0);
+  $("bigLabel").textContent = `${items[current].index}. ${items[current].label}`;
+  // サムネイル（最大60個）
+  const N = Math.min(items.length, 60), tsc = Math.min(1, 160 / Math.max(P.width, P.height)), box = $("thumbs");
+  box.innerHTML = "";
+  for (let i = 0; i < N; i++) {
+    const b = document.createElement("button"); b.type = "button"; b.title = items[i].label;
+    b.setAttribute("aria-label", items[i].label); if (i === current) b.setAttribute("aria-current", "true");
+    b.appendChild(render(items[i], P, tsc));
+    b.onclick = () => { current = i; preview(); };
+    box.appendChild(b);
+  }
+  $("previewNote").textContent = items.length > N ? `先頭 ${N} 個を表示` : "";
+}
+
+async function generateAll() {
+  let items;
+  try { items = makeItems(P); } catch (e) { $("err").textContent = e.message; return; }
+  if (!items.length) return;
+  const btn = $("btnGenerate"), prog = $("prog"), st = $("status");
+  btn.disabled = true; prog.hidden = false; prog.value = 0; prog.max = items.length;
+  const p = Object.assign({}, P), t0 = performance.now();
+  try {
+    await fontReady(p, items.map(i => i.text).join(""));
+    const range = items[0].label + (items.length > 1 ? "〜" + items[items.length - 1].label : "");
+    const nameAll = (fileBase({ label: range, index: 1 }, Object.assign({}, p, { filename: p.filename.includes("{text}") ? p.filename : "{text}" })));
+    if (p.fmt === "PPTX") {
+      const bytes = await makePptx(items, p, (i, n) => { prog.value = i; st.textContent = `${i} / ${n}`; });
+      download(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }), nameAll + ".pptx");
+    } else {
+      if (typeof JSZip === "undefined") throw new Error("ZIP 用の部品を読み込めませんでした（ネットワークを確認してください）");
+      const zip = new JSZip(), used = {};
+      for (let i = 0; i < items.length; i++) {
+        let base = fileBase(items[i], p); const k = base.toLowerCase();
+        used[k] = (used[k] || 0) + 1; if (used[k] > 1) base += "_" + used[k];
+        zip.file(base + EXT[p.fmt], await fileFor(items[i], p));
+        prog.value = i + 1; st.textContent = `${i + 1} / ${items.length} 作成中…`;
+        if (i % 4 === 3) await tick();
+      }
+      st.textContent = "ZIP にまとめています…";
+      const blob = await zip.generateAsync({ type: "blob", compression: p.fmt === "SVG" ? "DEFLATE" : "STORE" });
+      download(blob, nameAll + "_" + p.fmt.toLowerCase() + ".zip");
+    }
+    st.textContent = `${items.length} 個を保存しました（${((performance.now() - t0) / 1000).toFixed(1)} 秒）`;
+  } catch (e) {
+    console.error(e); st.textContent = ""; $("err").textContent = "作成できませんでした：" + e.message;
+  } finally { btn.disabled = false; prog.hidden = true; }
+}
+async function saveOne() {
+  let items; try { items = makeItems(P); } catch (e) { $("err").textContent = e.message; return; }
+  const it = items[current]; if (!it) return;
+  const p = Object.assign({}, P);
+  try {
+    await fontReady(p, it.text);
+    if (p.fmt === "PPTX") {
+      const bytes = await makePptx([it], Object.assign({}, p, { pptx_layout: "single" }), () => {});
+      download(new Blob([bytes]), fileBase(it, p) + ".pptx");
+    } else download(new Blob([await fileFor(it, p)], { type: MIME[p.fmt] || "image/svg+xml" }), fileBase(it, p) + EXT[p.fmt]);
+  } catch (e) { $("err").textContent = "保存できませんでした：" + e.message; }
+}
+
+// ---------------------------------------------------------------- 形の登録
+async function registerShape(file) {
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("画像を読み込めません")); i.src = URL.createObjectURL(file); });
+  const MAXS = 500, k = Math.min(1, MAXS / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(4, Math.round(img.naturalWidth * k)), h = Math.max(4, Math.round(img.naturalHeight * k));
+  const cv = OffscreenCanvasOr(w, h), ctx = cv.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, w, h);
+  URL.revokeObjectURL(img.src);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  let hasAlpha = false; for (let i = 3; i < d.length; i += 4) if (d[i] < 250) { hasAlpha = true; break; }
+  const v = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const a = d[i * 4 + 3];
+    v[i] = hasAlpha ? a : (255 - (0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2])) * a / 255;
+  }
+  // 小さい画像は少しぼかして段差を消す
+  const blurR = Math.max(0, Math.round(1.5 * (MAXS / Math.max(w, h)) / 3));
+  const field = blurR ? boxBlur(v, w, h, blurR) : v;
+  let rings = marchingSquares(field, w, h, 127.5).map(r => simplifyRing(r, 0.4));
+  // 小さすぎるかけら（面積が最大の0.2%未満）は捨てる
+  const area = r => Math.abs(r.reduce((s, [x, y], i) => { const [x2, y2] = r[(i + 1) % r.length]; return s + x * y2 - x2 * y; }, 0) / 2);
+  const amax = Math.max(0, ...rings.map(area));
+  rings = rings.filter(r => area(r) >= amax * 0.002);
+  if (!rings.length || amax < 20) throw new Error("画像に形が見つかりません。透過PNGか、白地に黒い形の画像にしてください。");
+  const nr = normRings(rings);
+  const name = (prompt("形の名前", file.name.replace(/\.[^.]+$/, "")) || "").trim();
+  if (!name) return;
+  const id = Date.now().toString(36);
+  userShapes.push({ id, name, rings: nr.rings.map(r => r.map(([x, y]) => [+x.toFixed(4), +y.toFixed(4)])), w: nr.w, h: nr.h, rec: SHAPE_TEXT.custom.slice() });
+  store.set("lblgen.shapes", userShapes);
+  P.shape = "u:" + id; Object.assign(P, { text_height: SHAPE_TEXT.custom[0], max_width: SHAPE_TEXT.custom[1], offset_y: SHAPE_TEXT.custom[2] });
+  buildShapeSelect(); toForm(); save(); schedule();
+}
+function boxBlur(v, w, h, r) {
+  const t = new Float32Array(w * h), o = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let s = 0, n = 0; for (let k = -r; k <= r; k++) { const xx = x + k; if (xx >= 0 && xx < w) { s += v[y * w + xx]; n++; } } t[y * w + x] = s / n; }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let s = 0, n = 0; for (let k = -r; k <= r; k++) { const yy = y + k; if (yy >= 0 && yy < h) { s += t[yy * w + x]; n++; } } o[y * w + x] = s / n; }
+  return o;
+}
+function showShapes() {
+  const ul = $("shapesList"); ul.innerHTML = "";
+  if (!userShapes.length) { ul.innerHTML = "<li><span>まだ登録した形はありません。</span></li>"; }
+  for (const s of userShapes) {
+    const li = document.createElement("li");
+    const cv = OffscreenCanvasOr(40, 40), c = cv.getContext("2d"), k = 36 / Math.max(s.w, s.h);
+    c.translate(20 - s.w * k / 2, 20 - s.h * k / 2); c.scale(k, k); c.fillStyle = "#888";
+    c.fill(geomPath({ type: "poly", rings: s.rings }), "evenodd");
+    const nm = document.createElement("span"); nm.textContent = s.name; nm.style.cursor = "pointer";
+    nm.onclick = () => { const n = (prompt("新しい名前", s.name) || "").trim(); if (n) { s.name = n; store.set("lblgen.shapes", userShapes); buildShapeSelect(); showShapes(); } };
+    const rec = document.createElement("button"); rec.className = "btn small"; rec.type = "button"; rec.textContent = "今の文字設定をおすすめにする";
+    rec.onclick = () => { s.rec = [P.text_height, P.max_width, P.offset_y]; store.set("lblgen.shapes", userShapes); rec.textContent = "保存しました"; };
+    const del = document.createElement("button"); del.className = "btn small"; del.type = "button"; del.textContent = "削除";
+    del.onclick = () => {
+      if (!confirm(`「${s.name}」を削除しますか？`)) return;
+      userShapes = userShapes.filter(x => x !== s); store.set("lblgen.shapes", userShapes);
+      buildShapeSelect(); toForm(); save(); schedule(); showShapes();
+    };
+    li.append(cv, nm, rec, del); ul.appendChild(li);
+  }
+  $("dlgShapes").showModal();
+}
+
+// ---------------------------------------------------------------- 起動
+function init() {
+  $("footVer").textContent = VERSION; $("aboutVer").textContent = "バージョン " + VERSION;
+  if (!fontInstalled(P.font_family) && P.font_family === DEFAULTS.font_family && !store.get("lblgen.settings", null)) P.font_family = "Roboto Condensed";
+  buildFontSelect(); buildShapeSelect(); toForm();
+  document.querySelector("main").addEventListener("input", fromInput);
+  document.querySelector("main").addEventListener("change", fromInput);
+  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+    document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+    document.querySelectorAll(".tabpane").forEach(x => x.classList.toggle("on", x.dataset.pane === b.dataset.tab));
+  });
+  document.querySelectorAll("[data-fill]").forEach(b => b.onclick = () => {
+    const f = b.dataset.fill, cp = (a, z) => Array.from({ length: z - a + 1 }, (_, i) => String.fromCodePoint(a + i));
+    const lists = { AZ: cp(65, 90), az: cp(97, 122), maru: cp(0x2460, 0x2473),
+      iroha: "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん".split("") };
+    P.items = lists[f].join("\n"); P.mode = "list"; toForm(); save(); schedule();
+  });
+  const PRESETS = { bw: ["#000000", "#000000", "#FFFFFF"], wb: ["#FFFFFF", "#000000", "#000000"], rw: ["#D32F2F", "#D32F2F", "#FFFFFF"], wr: ["#FFFFFF", "#D32F2F", "#D32F2F"] };
+  document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => {
+    const [t, f, i] = PRESETS[b.dataset.preset];
+    Object.assign(P, { text_color: t, frame_color: f, fill_color: i, fill_transparent: false }); toForm(); save(); schedule();
+  });
+  $("btnGenerate").onclick = generateAll;
+  $("btnOne").onclick = saveOne;
+  $("btnReset").onclick = () => { if (confirm("設定を初期状態に戻しますか？（登録した形は残ります）")) { P = Object.assign({}, DEFAULTS); if (!fontInstalled(P.font_family)) P.font_family = "Roboto Condensed"; buildFontSelect(); buildShapeSelect(); toForm(); save(); schedule(); } };
+  $("btnHelp").onclick = () => $("dlgHelp").showModal();
+  $("btnAbout").onclick = () => $("dlgAbout").showModal();
+  document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
+  $("btnAddShape").onclick = () => $("shapeFile").click();
+  $("shapeFile").onchange = async e => { const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try { await registerShape(f); } catch (err) { $("err").textContent = err.message; } };
+  $("btnManageShapes").onclick = showShapes;
+  $("btnCsv").onclick = () => $("csvFile").click();
+  $("csvFile").onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try {
+      csvRows = await readCsvFile(f);
+      if (!csvRows.length) throw new Error("データがありません");
+      if (Math.max(...csvRows.map(r => r.length)) === 1) applyCsv(0, false); else showCsvDialog(f.name);
+    } catch (err) { $("err").textContent = "CSV を読み込めませんでした：" + err.message; }
+  };
+  $("btnFontFile").onclick = () => $("fontFile").click();
+  $("fontFile").onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try {
+      const name = f.name.replace(/\.[^.]+$/, "");
+      const ff = new FontFace(name, await f.arrayBuffer()); await ff.load(); document.fonts.add(ff);
+      uploadedFonts.add(name); P.font_family = name; P.font_weight = "400"; buildFontSelect(); toForm(); save(); schedule();
+    } catch (err) { $("err").textContent = "フォントを読み込めませんでした：" + err.message; }
+  };
+  $("btnLocalFonts").onclick = async () => {
+    if (!window.queryLocalFonts) { $("err").textContent = "このブラウザはPCのフォント一覧の読み込みに対応していません（Chrome・Edge で使えます）。"; return; }
+    try {
+      const fonts = await window.queryLocalFonts();
+      extraFonts = [...new Set(fonts.map(f => f.family))].sort();
+      store.set("lblgen.fonts", extraFonts); buildFontSelect();
+      $("status").textContent = `${extraFonts.length} 個のフォントを一覧に追加しました`;
+    } catch (err) { $("err").textContent = "フォントの一覧を読み込めませんでした：" + err.message; }
+  };
+  schedule();
+}
+init();
+</script>
+</body>
+</html>

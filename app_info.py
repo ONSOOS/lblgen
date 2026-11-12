@@ -1,7 +1,7 @@
 """アプリの名前・バージョン・クレジット・更新の確認先（リリースのたびに VERSION を上げる）"""
 APP_NAME = "数字画像メーカー"
 APP_ID = "SujiMaker"               # ファイル名などに使う英字名
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 AUTHOR = "Akira Sudo"
 COMPANY = "OnsooSystem Corp."
 COPYRIGHT = "© 2026 OnsooSystem Corp."

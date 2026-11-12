@@ -255,7 +255,7 @@ def svg_string(item, p):
     if g["lw"] > 0:
         out.append(_svg_shape(g, "stroke", f'fill="none" stroke="{p["frame_color"]}" stroke-width="{_f(g["lw"])}"'))
     if t:
-        out.append(_svg_text(t, p))
+        out.append(_svg_text(t, core.item_params(item, p)))
     out.append("</svg>")
     return "\n".join(out) + "\n"
 
@@ -354,6 +354,8 @@ def save_pptx(items, p, path, progress=None, cancel=None):
     for idx, item in enumerate(items):
         if cancel and cancel():
             break
+        ip = core.item_params(item, p)
+        fi = font_info(ip["font_path"], int(ip["font_index"]))
         if idx % per == 0:
             slide = prs.slides.add_slide(blank)
         cell = idx % per

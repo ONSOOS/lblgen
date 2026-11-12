@@ -1,4 +1,6 @@
 """枠付き文字画像の描画エンジン（GUI からも、スクリプトからも使える）"""
+import csv
+import io
 import math
 import os
 import re
@@ -21,6 +23,8 @@ DEFAULTS = {
     "max_width": 58.0,        # 文字の最大幅（画像の幅に対する%）
     "min_scale": 82.0,        # 幅が収まらない時、等比縮小してよい下限（%）。残りは横方向だけ縮める
     "bold": 0.0,              # 太さ補正（文字の高さに対する%）
+    "jp_auto": True,          # 日本語（かな・漢字・全角・丸数字など）を含む文字は日本語フォントで描く
+    "jp_font_path": "", "jp_font_index": 0,   # 空なら游ゴシック Bold → メイリオ Bold → MS ゴシック の順に探す
     "valign": "ref",          # "ref" 数字の高さ基準で揃える / "ink" 文字ごとに中央
     "offset_x": 0.0, "offset_y": 0.0,
     # 枠
@@ -41,6 +45,7 @@ DEFAULTS = {
 }
 
 SHAPES = {
+    "none": "なし（枠なし）",
     "circle": "円",
     "ellipse": "楕円",
     "square": "正方形",
@@ -53,7 +58,7 @@ SHAPES = {
     "triangle": "三角形",
     "custom": "任意の形状（画像から）",
 }
-# "none"（枠なし＝画像全体が内側）は古い設定の読み込み用に残している
+# "none"（枠なし）は画像全体が内側になる。文字だけの画像に使う
 # 正方形系（画像が長方形でも、短辺に合わせた正方形の枠を中央に描く）
 SQUARE_SHAPES = {"circle", "square", "rounded"}
 # 形状ごとのおすすめ値：(文字の高さ%, 文字の最大幅%, 縦位置%)
@@ -92,14 +97,65 @@ def make_items(p):
                 items.append(dict(text=pre + t + suf, hide=(0, 0),
                                   label=pre + t + suf, index=i, n=n))
     else:
-        parts = [x.strip() for x in re.split(r"[\n,、]", p["items"])]
+        # 複数行なら1行に1つ（CSV から読んだ「大阪, 本町」なども1つ）。1行だけならカンマ・読点で区切る
+        src = p["items"].strip()
+        parts = [x.strip() for x in (src.splitlines() if "\n" in src else re.split(r"[,、，]", src))]
         for i, t in enumerate([x for x in parts if x], 1):
             items.append(dict(text=t, hide=(0, 0), label=t, index=i, n=i))
     return items
 
 
+# ---------------------------------------------------------------- CSV
+def read_csv(path):
+    """CSV を読んで行のリスト（各行は文字列のリスト）を返す。UTF-8（BOM 付きも）と Shift_JIS に対応"""
+    raw = open(path, "rb").read()
+    for enc in ("utf-8-sig", "cp932"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        text = raw.decode("utf-8", errors="replace")
+    try:
+        dialect = csv.Sniffer().sniff(text[:4096], delimiters=",\t;")
+    except csv.Error:
+        dialect = csv.excel
+    rows = [[c.strip() for c in r] for r in csv.reader(io.StringIO(text), dialect)]
+    return [r for r in rows if any(r)]
+
+
 # ---------------------------------------------------------------- フォント
 _font_cache = {}
+# 丸数字など・ローマ数字・記号/かな・漢字・互換漢字・全角
+_JP = re.compile("[①-⓿Ⅰ-ⅿ　-ヿ㐀-鿿豈-﫿＀-￯]")
+_JP_FALLBACK = ["YuGothB.ttc", "meiryob.ttc", "YuGothM.ttc", "meiryo.ttc", "BIZ-UDGothicB.ttc", "msgothic.ttc"]
+
+
+def needs_jp(text):
+    """日本語フォントが必要な文字（かな・漢字・全角・丸数字・ローマ数字）を含むか"""
+    return bool(_JP.search(text))
+
+
+def default_jp_font():
+    d = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
+    for f in _JP_FALLBACK:
+        if os.path.exists(os.path.join(d, f)):
+            return os.path.join(d, f), 0
+    return "", 0
+
+
+def item_params(item, p):
+    """その文字に使う設定（日本語を含むときは日本語フォントに差し替える）"""
+    if not p.get("jp_auto", True) or not needs_jp(item["text"]):
+        return p
+    path, idx = p.get("jp_font_path") or "", int(p.get("jp_font_index", 0))
+    if not path or not os.path.exists(path):
+        path, idx = default_jp_font()
+    if not path:
+        return p
+    return dict(p, font_path=path, font_index=idx)
+
 
 
 def get_font(path, index, size):
@@ -288,6 +344,7 @@ def shape_masks(p, w, h):
 # ---------------------------------------------------------------- 文字
 def text_mask(item, p, w, h, info=None):
     """文字のマスクを返す。info に dict を渡すと、ベクター出力用の配置情報（描画解像度の座標）を入れる"""
+    p = item_params(item, p)
     fx0, fy0, fx1, fy1 = frame_area(p, w, h)
     D = min(fx1 - fx0, fy1 - fy0)
     T = p["text_height"] / 100 * D
